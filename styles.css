@@ -196,11 +196,51 @@ tbody tr:hover { background: rgba(255,255,255,0.025); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 
-@media (max-width: 1000px) {
+/* ── RESPONSIVE DESIGN (Enhanced Mobile) ── */
+@media (max-width: 1200px) {
+    .app-container { padding: 1rem; }
     .top-row { grid-template-columns: 1fr; }
     .form-row-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+    body { padding: 0.75rem; }
+    .app-header { flex-direction: column; text-align: center; gap: 1rem; }
+    .header-actions { justify-content: center; width: 100%; }
+    .btn { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+    
     .kpi-grid { grid-template-columns: 1fr; }
+    .kpi-card { padding: 1rem; }
+    
+    .form-row-3, .form-row-4 { grid-template-columns: 1fr; gap: 0.5rem; }
+    .form-row-date { grid-template-columns: 1fr; }
+    
+    .section-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .badge-hint { font-size: 0.7rem; }
+    
+    /* Table optimizations for mobile */
+    .table-responsive {
+        margin: 0 -1rem; /* Full bleed on mobile */
+        padding: 0 1rem;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    table { font-size: 0.75rem; }
+    th, td { padding: 0.5rem; }
+    
+    /* Optional: Sticky first column for mobile */
+    td:first-child, th:first-child {
+        position: sticky;
+        left: 0;
+        background: var(--bg-color);
+        z-index: 2;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+    }
 }
-@media (max-width: 600px) {
-    .form-row-3, .form-row-4 { grid-template-columns: 1fr; }
+
+@media (max-width: 480px) {
+    .logo-text h1 { font-size: 1.1rem; }
+    .logo-icon { font-size: 1.8rem; }
+    .kpi-info p { font-size: 1.1rem; }
 }
+
