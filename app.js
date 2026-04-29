@@ -68,7 +68,7 @@ const renderAll = (data) => {
 const updateKPIs = (data) => {
     let totalRobot = 0, totalKredi = 0;
     data.forEach(d => {
-        totalRobot  += (d.robotEft||0) + (d.robotNakit||0) + (d.robotKredi||0);
+        totalRobot  += (d.robotEft||0) + (d.robotNakit||0) + (d.robotKredi||0) + (d.yemek||0) + (d.cari||0);
         totalKredi  += (d.robotKredi||0);
     });
     const ratio = totalRobot > 0 ? (totalKredi / totalRobot) * 100 : 0;
@@ -100,7 +100,7 @@ const updateTable = (data) => {
         const eftFark      = rEft - mEft;
         const posRobFark   = kNak - rNak;
         const kreFark      = rKre - mKre;
-        const robTop       = rEft + rNak + rKre;
+        const robTop       = rEft + rNak + rKre + (item.yemek||0) + (item.cari||0);
         const muhTop       = mEft + mNak + mKre;
         const kasRobFark   = kNak - rNak;
         const nakFarkTop   = eftFark + posRobFark + kreFark;
@@ -144,7 +144,7 @@ const updateChart = (data) => {
         data: {
             labels: data.map(d => formatDate(d.date).substring(0, 5)),
             datasets: [
-                { label: 'ROBOTPOS TOPLAM', data: data.map(d => (d.robotEft||0)+(d.robotNakit||0)+(d.robotKredi||0)), borderColor: 'rgba(59,130,246,1)', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
+                { label: 'ROBOTPOS TOPLAM', data: data.map(d => (d.robotEft||0)+(d.robotNakit||0)+(d.robotKredi||0)+(d.yemek||0)+(d.cari||0)), borderColor: 'rgba(59,130,246,1)', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
                 { label: 'MUHASEBE TOPLAM', data: data.map(d => (d.muhEft||0)+(d.muhNakit||0)+(d.muhKredi||0)), borderColor: 'rgba(16,185,129,1)', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, fill: true }
             ]
         },
@@ -174,14 +174,14 @@ const recalcForm = () => {
     s('inputEftFark',             rEft - mEft);
     s('inputPosRobotNakitFark',   kNak - rNak);
     s('inputKrediFark',           rKre - mKre);
-    s('inputRobotToplam',         rEft + rNak + rKre);
+    s('inputRobotToplam',         rEft + rNak + rKre + g('inputYemek') + g('inputCari'));
     s('inputMuhasebeToplam',      mEft + mNak + mKre);
     s('inputKasaRobotFark',       kNak - rNak);
     s('inputKasaNakitFarkToplam', (rEft-mEft) + (kNak-rNak) + (rKre-mKre));
 };
 
 ['inputRobotEft','inputMuhasebeEft','inputKasaNakit','inputRobotNakit',
- 'inputMuhasebeNakit','inputRobotKredi','inputMuhasebeKredi'
+ 'inputMuhasebeNakit','inputRobotKredi','inputMuhasebeKredi','inputYemek','inputCari'
 ].forEach(id => document.getElementById(id).addEventListener('input', recalcForm));
 
 // ── FORM SUBMIT ────────────────────────────────────────────────
