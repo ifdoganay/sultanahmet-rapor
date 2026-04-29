@@ -232,11 +232,12 @@ tbody tr:hover { background: rgba(255,255,255,0.025); }
     td:first-child, th:first-child {
         position: sticky;
         left: 0;
-        background: var(--bg-color);
-        z-index: 2;
-        box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+        background: #1e293b !important; /* Solid opaque color matching panel-bg */
+        z-index: 10;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
     }
 }
+
 
 @media (max-width: 480px) {
     .logo-text h1 { font-size: 1.1rem; }
