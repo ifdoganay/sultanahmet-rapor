@@ -23,8 +23,9 @@ db.collection(COLLECTION).orderBy('date', 'asc').onSnapshot(snapshot => {
 // ── FIREBASE: SAVE ─────────────────────────────────────────────
 const saveRecord = async (rec) => {
     try {
-        await db.collection(COLLECTION).doc(rec.id).set(rec);
-        showToast('Kayıt başarıyla kaydedildi ✓');
+        // merge: true sayesinde var olan diğer alanlar (manuel girişler vb) silinmez
+        await db.collection(COLLECTION).doc(rec.id).set(rec, { merge: true });
+        showToast('Kayıt başarıyla güncellendi ✓');
     } catch (e) {
         console.error(e);
         showToast('Kayıt sırasında hata oluştu!', 'error');
@@ -261,12 +262,17 @@ const extractTextFromPDF = async (file) => {
 };
 
 const parseDataFromText = (text, filename) => {
-    const clean = (s) => parseFloat(s.replace(/\./g,'').replace(',','.'));
+    // Sayı temizleme: Boşlukları sil, noktaları sil, virgülü noktaya çevir
+    const clean = (s) => {
+        if (!s) return 0;
+        const cleaned = s.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+        return parseFloat(cleaned) || 0;
+    };
     const upperText = text.toUpperCase('tr-TR');
     
-    // Yardımcı fonksiyon: Kelimeden sonraki ilk tutarı bulur
+    // Yardımcı fonksiyon: Kelimeden sonraki ilk tutarı bulur (aradaki 50 karaktere kadar olan gürültüyü atlar)
     const getAmount = (keyword) => {
-        const regex = new RegExp(keyword + '[\\s\\S]{0,30}?([\\d\\.]+(?:,\\d+)?)', 'g');
+        const regex = new RegExp(keyword + '[\\s\\S]{0,50}?(?:\\D|^)([\\d\\s\\.]+(?:,\\d+)?)', 'g');
         let total = 0, m;
         while ((m = regex.exec(upperText)) !== null) {
             total += clean(m[1]);
@@ -276,7 +282,7 @@ const parseDataFromText = (text, filename) => {
 
     // NAKİT ve MOBİL NAKİT
     let normalNakit = 0, mobilNakit = 0;
-    const nakitRegex = /(MOB[İI]L\s+)?NAK[İI]T[\s\S]{0,30}?([\d\.]+(?:,\d+)?)/g;
+    const nakitRegex = /(MOB[İI]L\s+)?NAK[İI]T[\s\S]{0,40}?([\d\s\.]+(?:,\d+)?)/g;
     let nakitMatch;
     while ((nakitMatch = nakitRegex.exec(upperText)) !== null) {
         const isMobil = !!nakitMatch[1];
@@ -287,7 +293,7 @@ const parseDataFromText = (text, filename) => {
 
     // KREDİ ve MOBİL KREDİ
     let normalKredi = 0, mobilKredi = 0;
-    const krediRegex = /(MOB[İI]L\s+)?KRED[İI][\s\S]{0,30}?([\d\.]+(?:,\d+)?)/g;
+    const krediRegex = /(MOB[İI]L\s+)?KRED[İI][\s\S]{0,40}?([\d\s\.]+(?:,\d+)?)/g;
     let krediMatch;
     while ((krediMatch = krediRegex.exec(upperText)) !== null) {
         const isMobil = !!krediMatch[1];
@@ -296,10 +302,10 @@ const parseDataFromText = (text, filename) => {
         else normalKredi = val;
     }
 
-    // YEMEK KARTLARI (Multinet, Metropol, Ticket, Sodexo, Setcard)
-    const yemekKartlari = getAmount('MULTINET') + 
+    // YEMEK KARTLARI (Çeşitli yazım türlerini destekler)
+    const yemekKartlari = getAmount('MULT[İI]NET') + 
                          getAmount('METROPOL') + 
-                         getAmount('TICKET') + 
+                         getAmount('T[İI]CKET') + 
                          getAmount('SODEXO') + 
                          getAmount('SETCARD');
 
@@ -309,7 +315,7 @@ const parseDataFromText = (text, filename) => {
     const robotNakit = normalNakit + mobilNakit;
     const robotKredi = normalKredi + mobilKredi;
 
-    // Tarih ayıklama (Dosya adından: 27.04.2026.pdf)
+    // Tarih ayıklama
     let dateObj = new Date();
     const dm = filename.match(/(\d{1,2})[\.\-](\d{1,2})[\.\-](\d{4})/);
     if (dm) {
@@ -317,16 +323,19 @@ const parseDataFromText = (text, filename) => {
     }
     const dateISO = dateObj.toISOString().split('T')[0];
     
-    return {
+    // Sadece bulunan (0'dan büyük) değerleri nesneye ekle (merge için önemli)
+    const rec = {
         id: dateISO.replace(/-/g, ''),
         date: dateISO,
-        robotNakit: robotNakit,
-        robotKredi: robotKredi,
-        yemek: yemekKartlari,
-        cari: onlineCari,
-        robotEft: 0, muhEft: 0, kasaNakit: 0, muhNakit: 0, muhKredi: 0,
         updatedAt: new Date().toISOString()
     };
+    
+    if (robotNakit > 0) rec.robotNakit = robotNakit;
+    if (robotKredi > 0) rec.robotKredi = robotKredi;
+    if (yemekKartlari > 0) rec.yemek = yemekKartlari;
+    if (onlineCari > 0) rec.cari = onlineCari;
+    
+    return rec;
 };
 
 // ── EXCEL EXPORT ───────────────────────────────────────────────
