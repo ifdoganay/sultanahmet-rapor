@@ -239,7 +239,9 @@ const handleFiles = async (files) => {
         try {
             if (ext === 'pdf') {
                 const text = await extractTextFromPDF(file);
+                console.log('PDF RAW TEXT:', text); // Debug: tarayıcı konsolunda görülebilir
                 const rec  = parseDataFromText(text, file.name);
+                console.log('PARSED REC:', rec); // Debug
                 if (rec) { await saveRecord(rec); added++; }
             } else {
                 showToast('Excel yükleme yakında aktif olacak. Şimdilik PDF veya manuel giriş kullanın.');
@@ -258,74 +260,87 @@ const extractTextFromPDF = async (file) => {
     for (let i = 1; i <= pdf.numPages; i++) {
         const page    = await pdf.getPage(i);
         const content = await page.getTextContent();
-        text += content.items.map(s => s.str).join(' ') + '\n';
+        // Her text item'ı arasına newline koy (böylece satır bazlı arama yapılabilir)
+        text += content.items.map(s => s.str).join('\n') + '\n';
     }
     return text;
 };
 
+// ── PDF / TEXT PARSER ──────────────────────────────────────────
+// Gerçek Z raporu formatı (Word COM ile okunmuş):
+//   7: MOBİL KREDİ
+//   8: 812.010,00 TL
+//   10: MOBİL NAKİT
+//   11: 135.820,00 TL
+//   13: NAKİT
+//   14: 110.745,00 TL
+//   16: METROPOL
+//   17: 11.690,00 TL
+// Etiket bir satırda, tutar sonraki satırlarda
 const parseDataFromText = (text, filename) => {
-    // Sayı temizleme: Boşlukları sil, noktaları sil, virgülü noktaya çevir
+    // Sayı temizleme: "1.097.045,00 TL" -> 1097045.00
     const clean = (s) => {
         if (!s) return 0;
-        const cleaned = s.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+        const cleaned = s.replace(/\s/g, '').replace(/TL/gi, '').replace(/%[\d.,]+/g, '').replace(/\./g, '').replace(',', '.').trim();
         return parseFloat(cleaned) || 0;
     };
-    const upperText = text.toUpperCase('tr-TR');
+
+    // Satırlara ayır
+    const lines = text.split(/[\r\n\u0007]+/).map(l => l.trim()).filter(l => l.length > 0);
     
-    // Yardımcı fonksiyon: Kelimeden sonraki ilk tutarı bulur (aradaki 50 karaktere kadar olan gürültüyü atlar)
-    const getAmount = (keyword) => {
-        const regex = new RegExp(keyword + '[\\s\\S]{0,50}?(?:\\D|^)([\\d\\s\\.]+(?:,\\d+)?)', 'g');
-        let total = 0, m;
-        while ((m = regex.exec(upperText)) !== null) {
-            total += clean(m[1]);
+    // Yardımcı: Belirli bir etiketin bulunduğu satırdan sonraki ilk sayıyı bul
+    const findAmount = (labelPattern) => {
+        const labelRegex = new RegExp(labelPattern, 'i');
+        for (let i = 0; i < lines.length; i++) {
+            if (labelRegex.test(lines[i])) {
+                // Aynı satırda tutar var mı? (ör: "NAKİT 110.745,00 TL")
+                const sameLineMatch = lines[i].match(/(\d[\d.]*,\d{2})/);
+                if (sameLineMatch) return clean(sameLineMatch[1]);
+                // Sonraki 1-3 satırda tutar ara
+                for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+                    const numMatch = lines[j].match(/(\d[\d.]*,\d{2})/);
+                    if (numMatch) return clean(numMatch[1]);
+                }
+            }
         }
-        return total;
+        return 0;
     };
 
-    // NAKİT ve MOBİL NAKİT
-    let normalNakit = 0, mobilNakit = 0;
-    const nakitRegex = /(MOB[İI]L\s+)?NAK[İI]T[\s\S]{0,40}?([\d\s\.]+(?:,\d+)?)/g;
-    let nakitMatch;
-    while ((nakitMatch = nakitRegex.exec(upperText)) !== null) {
-        const isMobil = !!nakitMatch[1];
-        const val = clean(nakitMatch[2]);
-        if (isMobil) mobilNakit += val; // Toplayarak devam et
-        else normalNakit += val;
-    }
+    // ── ANA VERİLER ──
+    // MOBİL NAKİT + NAKİT = ROBOTPOS NAKİT
+    const mobilNakit  = findAmount('MOB.L\\s+NAK.T');
+    const normalNakit = findAmount('^NAK.T$');
 
-    // KREDİ ve MOBİL KREDİ
-    let normalKredi = 0, mobilKredi = 0;
-    const krediRegex = /(MOB[İI]L\s+)?KRED[İI][\s\S]{0,40}?([\d\s\.]+(?:,\d+)?)/g;
-    let krediMatch;
-    while ((krediMatch = krediRegex.exec(upperText)) !== null) {
-        const isMobil = !!krediMatch[1];
-        const val = clean(krediMatch[2]);
-        if (isMobil) mobilKredi += val; // Toplayarak devam et
-        else normalKredi += val;
-    }
+    // MOBİL KREDİ + KREDİ KARTI = ROBOTPOS KREDİ KARTI
+    const mobilKredi  = findAmount('MOB.L\\s+KRED.');
+    const normalKredi = findAmount('^KRED.\\s*KART');
 
-    // YEMEK KARTLARI (Çeşitli yazım türlerini destekler)
-    const yemekKartlari = getAmount('MULT[İI]NET') + 
-                         getAmount('METROPOL') + 
-                         getAmount('T[İI]CKET') + 
-                         getAmount('SODEXO') + 
-                         getAmount('SETCARD');
+    // YEMEK KARTLARI = SODEXO + METROPOL + MULTINET + SETCARD + TICKET
+    const sodexo   = findAmount('SODEXO');
+    const metropol = findAmount('METROPOL');
+    const multinet = findAmount('MULT.NET');
+    const setcard  = findAmount('SETCARD');
+    const ticket   = findAmount('T.CKET');
+    const yemekKartlari = sodexo + metropol + multinet + setcard + ticket;
 
     // ONLINE CARİ
-    const onlineCari = getAmount('ONLINE CAR[İI]');
+    const onlineCari = findAmount('ONLINE\\s*CAR.');
 
     const robotNakit = normalNakit + mobilNakit;
     const robotKredi = normalKredi + mobilKredi;
 
-    // Tarih ayıklama
+    // Tarih ayıklama (dosya adından: 01.04.2026.pdf)
     let dateObj = new Date();
-    const dm = filename.match(/(\d{1,2})[\.\-](\d{1,2})[\.\-](\d{4})/);
+    const dm = filename.match(/(\d{1,2})[.\-](\d{1,2})[.\-](\d{4})/);
     if (dm) {
         dateObj = new Date(`${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`);
     }
     const dateISO = dateObj.toISOString().split('T')[0];
+
+    // Debug log
+    console.log(`PDF Parse: Nakit=${normalNakit}+${mobilNakit}=${robotNakit}, Kredi=${normalKredi}+${mobilKredi}=${robotKredi}, Yemek=${yemekKartlari}, Cari=${onlineCari}`);
     
-    // Sadece bulunan (0'dan büyük) değerleri nesneye ekle (merge için önemli)
+    // Sadece bulunan (0'dan büyük) değerleri nesneye ekle (merge: true ile mevcut veriler korunur)
     const rec = {
         id: dateISO.replace(/-/g, ''),
         date: dateISO,
@@ -407,6 +422,3 @@ const showToast = (msg, type = 'success') => {
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 3500);
 };
-
-// ── PDF.JS WORKER ──────────────────────────────────────────────
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
