@@ -262,43 +262,41 @@ const extractTextFromPDF = async (file) => {
 
 const parseDataFromText = (text, filename) => {
     const clean = (s) => parseFloat(s.replace(/\./g,'').replace(',','.'));
+    const upperText = text.toUpperCase('tr-TR');
     
     let normalNakit = 0, mobilNakit = 0;
     let normalKredi = 0, mobilKredi = 0;
 
-    const lines = text.split('\n');
-    lines.forEach(line => {
-        const upperLine = line.toUpperCase('tr-TR');
-        
-        // MOBİL NAKİT
-        if (upperLine.includes('MOBİL NAKİT') || upperLine.includes('MOBIL NAKIT')) {
-            const m = upperLine.match(/MOB[İI]L\s+NAK[İI]T\s*[:=-]?\s*([\d.,]+)/);
-            if (m) mobilNakit = clean(m[1]);
-        }
-        // NORMAL NAKİT (İçinde Mobil geçmiyorsa)
-        else if (upperLine.includes('NAKİT') || upperLine.includes('NAKIT')) {
-            const m = upperLine.match(/NAK[İI]T\s*[:=-]?\s*([\d.,]+)/);
-            if (m) normalNakit = clean(m[1]);
-        }
+    // NAKİT ve MOBİL NAKİT (Esnek arama: aradaki boşluk/karakterleri atlar)
+    // [\s\S]{0,30}? -> 30 karaktere kadar her şeyi (boşluk, : , TL vb) atlar
+    const nakitRegex = /(MOB[İI]L\s+)?NAK[İI]T[\s\S]{0,30}?([\d\.]+(?:,\d+)?)/g;
+    let nakitMatch;
+    while ((nakitMatch = nakitRegex.exec(upperText)) !== null) {
+        const isMobil = !!nakitMatch[1];
+        const val = clean(nakitMatch[2]);
+        if (isMobil) mobilNakit = val;
+        else normalNakit = val;
+    }
 
-        // MOBİL KREDİ
-        if (upperLine.includes('MOBİL KREDİ') || upperLine.includes('MOBIL KREDI')) {
-            const m = upperLine.match(/MOB[İI]L\s+KRED[İI]\s*(?:KARTI)?\s*[:=-]?\s*([\d.,]+)/);
-            if (m) mobilKredi = clean(m[1]);
-        }
-        // NORMAL KREDİ
-        else if (upperLine.includes('KREDİ') || upperLine.includes('KREDI')) {
-            const m = upperLine.match(/KRED[İI]\s*(?:KARTI)?\s*[:=-]?\s*([\d.,]+)/);
-            if (m) normalKredi = clean(m[1]);
-        }
-    });
+    // KREDİ ve MOBİL KREDİ
+    const krediRegex = /(MOB[İI]L\s+)?KRED[İI][\s\S]{0,30}?([\d\.]+(?:,\d+)?)/g;
+    let krediMatch;
+    while ((krediMatch = krediRegex.exec(upperText)) !== null) {
+        const isMobil = !!krediMatch[1];
+        const val = clean(krediMatch[2]);
+        if (isMobil) mobilKredi = val;
+        else normalKredi = val;
+    }
 
     const robotNakit = normalNakit + mobilNakit;
     const robotKredi = normalKredi + mobilKredi;
 
+    // Tarih ayıklama (Dosya adından: 27.04.2026.pdf)
     let dateObj = new Date();
-    const dm    = filename.match(/(\d{1,2})[\.\-](\d{1,2})[\.\-](\d{4})/);
-    if (dm) dateObj = new Date(`${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`);
+    const dm = filename.match(/(\d{1,2})[\.\-](\d{1,2})[\.\-](\d{4})/);
+    if (dm) {
+        dateObj = new Date(`${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`);
+    }
     const dateISO = dateObj.toISOString().split('T')[0];
     
     return {
