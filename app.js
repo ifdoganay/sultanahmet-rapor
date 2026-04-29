@@ -189,20 +189,26 @@ document.getElementById('dataForm').addEventListener('submit', async (e) => {
 
     // Check if record for this date exists
     const existing = allData.find(r => r.date === date);
-    if (existing && !confirm(`${formatDate(date)} tarihli kayıt zaten var. Üzerine yazılsın mı?`)) return;
+
+    // Boş bırakılan alanlarda var olan veriyi korur, yeni girileni üstüne yazar
+    const getVal = (id, fieldName) => {
+        const strVal = document.getElementById(id).value;
+        if (strVal !== '') return parseFloat(strVal) || 0;
+        return existing ? (existing[fieldName] || 0) : 0;
+    };
 
     const rec = {
         id:          existing ? existing.id : date.replace(/-/g, ''),
         date,
-        robotEft:    g('inputRobotEft'),
-        muhEft:      g('inputMuhasebeEft'),
-        kasaNakit:   g('inputKasaNakit'),
-        robotNakit:  g('inputRobotNakit'),
-        muhNakit:    g('inputMuhasebeNakit'),
-        robotKredi:  g('inputRobotKredi'),
-        muhKredi:    g('inputMuhasebeKredi'),
-        yemek:       g('inputYemek'),
-        cari:        g('inputCari'),
+        robotEft:    getVal('inputRobotEft', 'robotEft'),
+        muhEft:      getVal('inputMuhasebeEft', 'muhEft'),
+        kasaNakit:   getVal('inputKasaNakit', 'kasaNakit'),
+        robotNakit:  getVal('inputRobotNakit', 'robotNakit'),
+        muhNakit:    getVal('inputMuhasebeNakit', 'muhNakit'),
+        robotKredi:  getVal('inputRobotKredi', 'robotKredi'),
+        muhKredi:    getVal('inputMuhasebeKredi', 'muhKredi'),
+        yemek:       getVal('inputYemek', 'yemek'),
+        cari:        getVal('inputCari', 'cari'),
         updatedAt:   new Date().toISOString()
     };
     await saveRecord(rec);
