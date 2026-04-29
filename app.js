@@ -122,6 +122,8 @@ const updateTable = (data) => {
             <td class="currency toplam-col">${formatCurrency(muhTop)}</td>
             <td class="currency fark-col" style="${colorize(kasRobFark)}">${formatCurrency(kasRobFark)}</td>
             <td class="currency toplam-col" style="${colorize(nakFarkTop)};font-weight:700">${formatCurrency(nakFarkTop)}</td>
+            <td class="currency">${formatCurrency(item.yemek)}</td>
+            <td class="currency">${formatCurrency(item.cari)}</td>
             <td>
                 <button class="btn-icon" onclick="deleteRecord('${item.id}')" title="Sil">
                     <i class="fa-solid fa-trash"></i>
@@ -287,8 +289,8 @@ const parseDataFromText = (text, filename) => {
     while ((nakitMatch = nakitRegex.exec(upperText)) !== null) {
         const isMobil = !!nakitMatch[1];
         const val = clean(nakitMatch[2]);
-        if (isMobil) mobilNakit = val;
-        else normalNakit = val;
+        if (isMobil) mobilNakit += val; // Toplayarak devam et
+        else normalNakit += val;
     }
 
     // KREDİ ve MOBİL KREDİ
@@ -298,8 +300,8 @@ const parseDataFromText = (text, filename) => {
     while ((krediMatch = krediRegex.exec(upperText)) !== null) {
         const isMobil = !!krediMatch[1];
         const val = clean(krediMatch[2]);
-        if (isMobil) mobilKredi = val;
-        else normalKredi = val;
+        if (isMobil) mobilKredi += val; // Toplayarak devam et
+        else normalKredi += val;
     }
 
     // YEMEK KARTLARI (Çeşitli yazım türlerini destekler)
