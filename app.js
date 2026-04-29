@@ -264,11 +264,18 @@ const parseDataFromText = (text, filename) => {
     const clean = (s) => parseFloat(s.replace(/\./g,'').replace(',','.'));
     const upperText = text.toUpperCase('tr-TR');
     
-    let normalNakit = 0, mobilNakit = 0;
-    let normalKredi = 0, mobilKredi = 0;
+    // Yardımcı fonksiyon: Kelimeden sonraki ilk tutarı bulur
+    const getAmount = (keyword) => {
+        const regex = new RegExp(keyword + '[\\s\\S]{0,30}?([\\d\\.]+(?:,\\d+)?)', 'g');
+        let total = 0, m;
+        while ((m = regex.exec(upperText)) !== null) {
+            total += clean(m[1]);
+        }
+        return total;
+    };
 
-    // NAKİT ve MOBİL NAKİT (Esnek arama: aradaki boşluk/karakterleri atlar)
-    // [\s\S]{0,30}? -> 30 karaktere kadar her şeyi (boşluk, : , TL vb) atlar
+    // NAKİT ve MOBİL NAKİT
+    let normalNakit = 0, mobilNakit = 0;
     const nakitRegex = /(MOB[İI]L\s+)?NAK[İI]T[\s\S]{0,30}?([\d\.]+(?:,\d+)?)/g;
     let nakitMatch;
     while ((nakitMatch = nakitRegex.exec(upperText)) !== null) {
@@ -279,6 +286,7 @@ const parseDataFromText = (text, filename) => {
     }
 
     // KREDİ ve MOBİL KREDİ
+    let normalKredi = 0, mobilKredi = 0;
     const krediRegex = /(MOB[İI]L\s+)?KRED[İI][\s\S]{0,30}?([\d\.]+(?:,\d+)?)/g;
     let krediMatch;
     while ((krediMatch = krediRegex.exec(upperText)) !== null) {
@@ -287,6 +295,16 @@ const parseDataFromText = (text, filename) => {
         if (isMobil) mobilKredi = val;
         else normalKredi = val;
     }
+
+    // YEMEK KARTLARI (Multinet, Metropol, Ticket, Sodexo, Setcard)
+    const yemekKartlari = getAmount('MULTINET') + 
+                         getAmount('METROPOL') + 
+                         getAmount('TICKET') + 
+                         getAmount('SODEXO') + 
+                         getAmount('SETCARD');
+
+    // ONLINE CARİ
+    const onlineCari = getAmount('ONLINE CAR[İI]');
 
     const robotNakit = normalNakit + mobilNakit;
     const robotKredi = normalKredi + mobilKredi;
@@ -304,7 +322,9 @@ const parseDataFromText = (text, filename) => {
         date: dateISO,
         robotNakit: robotNakit,
         robotKredi: robotKredi,
-        robotEft: 0, muhEft: 0, kasaNakit: 0, muhNakit: 0, muhKredi: 0, yemek: 0, cari: 0,
+        yemek: yemekKartlari,
+        cari: onlineCari,
+        robotEft: 0, muhEft: 0, kasaNakit: 0, muhNakit: 0, muhKredi: 0,
         updatedAt: new Date().toISOString()
     };
 };
