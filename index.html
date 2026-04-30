@@ -48,9 +48,11 @@
             </div>
         </div>
         <div class="header-actions">
+            <button id="btnSettings" class="btn btn-outline admin-only hidden"><i class="fa-solid fa-cog"></i> Ayarlar</button>
+            <button id="btnLogout" class="btn btn-outline"><i class="fa-solid fa-right-from-bracket"></i> Çıkış</button>
             <button id="btnExportExcel" class="btn btn-success"><i class="fa-solid fa-file-excel"></i> Excel İndir</button>
             <button id="btnExportPDF"   class="btn btn-danger"><i class="fa-solid fa-file-pdf"></i> PDF İndir</button>
-            <button id="btnClearData"   class="btn btn-outline"><i class="fa-solid fa-trash"></i> Tümünü Sil</button>
+            <button id="btnClearData"   class="btn btn-outline admin-only hidden"><i class="fa-solid fa-trash"></i> Tümünü Sil</button>
         </div>
     </header>
 
@@ -79,8 +81,8 @@
                     <div class="kpi-info"><h3>Nakit Oranı</h3><p id="kpiNakitRatio">%0</p></div>
                 </div>
                 <div class="kpi-card glass-panel">
-                    <div class="kpi-icon mobil"><i class="fa-solid fa-mobile-screen-button"></i></div>
-                    <div class="kpi-info"><h3>Mobil Nakit Oranı</h3><p id="kpiMobilRatio">%0</p></div>
+                    <div class="kpi-icon mobil"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <div class="kpi-info"><h3>Muhasebe Nakit Oranı</h3><p id="kpiMuhasebeRatio">%0</p></div>
                 </div>
                 <div class="kpi-card glass-panel">
                     <div class="kpi-icon amber"><i class="fa-solid fa-calendar-day"></i></div>
@@ -336,19 +338,71 @@
         </div><!-- /depoStokContent -->
     </div><!-- /accordion-panel -->
 
+</div><!-- /app-container -->
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card glass-panel">
+        <div class="logo-area" style="justify-content: center; margin-bottom: 2rem;">
+            <i class="fa-solid fa-lock logo-icon"></i>
+            <div class="logo-text">
+                <h1>Giriş Yap</h1>
+                <p>Sultanahmet Yönetim Paneli</p>
+            </div>
+        </div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Kullanıcı Adı</label>
+                <input type="text" id="loginUser" required placeholder="Kullanıcı adınızı girin">
+            </div>
+            <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="loginPass" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn btn-primary btn-submit" style="margin-top: 1rem;">Giriş Yap</button>
+        </form>
+        <p id="loginError" style="color: var(--danger); font-size: 0.8rem; margin-top: 1rem; text-align: center;"></p>
+    </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsModal" class="modal hidden">
+    <div class="modal-content glass-panel">
+        <div class="section-header">
+            <h2><i class="fa-solid fa-user-gear"></i> Kullanıcı ve İzin Yönetimi</h2>
+            <button class="btn-icon" onclick="toggleModal('settingsModal', false)"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Kullanıcı</th>
+                        <th>Rol</th>
+                        <th>Yeni Şifre</th>
+                        <th>Mali Analiz</th>
+                        <th>Depo-Stok</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody id="userManagementBody">
+                    <!-- Dinamik olarak dolacak -->
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    // Accordion toggle fonksiyonu
     function toggleAccordion(contentId, btn) {
         const content = document.getElementById(contentId);
-        const isOpen = content.classList.contains('open');
-        
-        // Tıklanan paneli aç/kapa
         content.classList.toggle('open');
         btn.classList.toggle('active');
+    }
+
+    function toggleModal(id, show) {
+        document.getElementById(id).classList.toggle('hidden', !show);
     }
 </script>
 <script src="app.js"></script>
