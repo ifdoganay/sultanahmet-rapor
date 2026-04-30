@@ -35,13 +35,16 @@ db.collection(STOK_COLLECTION).orderBy('date', 'desc').onSnapshot(snapshot => {
 // Ürün Fiyatları
 db.collection(PRODUCT_COLLECTION).onSnapshot(snapshot => {
     allProducts = {};
+    const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Alfabetik sırala
+    prods.sort((a,b) => a.name.localeCompare(b.name, 'tr'));
+    
     const datalist = document.getElementById('productList');
     datalist.innerHTML = '';
-    snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        allProducts[doc.id] = data;
+    prods.forEach(p => {
+        allProducts[p.id] = p;
         const opt = document.createElement('option');
-        opt.value = data.name;
+        opt.value = p.name;
         datalist.appendChild(opt);
     });
     processStokData();
