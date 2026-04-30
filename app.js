@@ -337,7 +337,11 @@ const processStokData = () => {
     sortedMoves.forEach(m => {
         const slug = m.productName.toUpperCase('tr-TR').replace(/\s+/g, '');
         if (!status[slug]) {
-             status[slug] = { name: m.productName, price: 0, count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00' };
+             status[slug] = { 
+                 name: m.productName, price: 0, unit: '', 
+                 isActive: true, // BUG FIX: Ensure new products from transactions are active by default
+                 count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00' 
+             };
         }
 
         if (m.type === 'COUNT') {
@@ -594,6 +598,7 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
             name: productName,
             price: price || (allProducts[productSlug] ? allProducts[productSlug].price : 0),
             unit: unit || (allProducts[productSlug] ? (allProducts[productSlug].unit || '') : ''),
+            isActive: allProducts[productSlug] ? (allProducts[productSlug].isActive !== false) : true,
             updatedAt: new Date().toISOString()
         }, { merge: true });
     }
