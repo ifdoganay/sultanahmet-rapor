@@ -1,10 +1,12 @@
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
+const USER_COLLECTION = 'sultanahmet_users';
 let chartInstance = null;
 let allData = [];
 let allStokData = [];
 let allProducts = {}; // { slug: { name, price } }
+let currentUser = null;
 
 // --- UTILS ---
 const formatCurrency = (amount) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount || 0);
@@ -14,41 +16,157 @@ const formatDate = (dateString) => {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
 };
 
-// ── FIREBASE: REAL-TIME LISTENER ──────────────────────────────
-// Raporlar
-db.collection(COLLECTION).orderBy('date', 'asc').onSnapshot(snapshot => {
-    allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    renderAll(allData);
-}, err => {
-    console.error('Firestore hatası:', err);
-    showToast('Veritabanı bağlantı hatası!', 'error');
-});
+// ── AUTH LOGIC ────────────────────────────────────────────────
+const checkAuth = () => {
+    const saved = localStorage.getItem('sultanahmet_user');
+    if (saved) {
+        currentUser = JSON.parse(saved);
+        document.getElementById('loginOverlay').classList.add('hidden');
+        updateUIVisibility();
+        initApp();
+    }
+};
 
-// Stoklar
-db.collection(STOK_COLLECTION).orderBy('date', 'desc').onSnapshot(snapshot => {
-    allStokData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    processStokData();
-}, err => {
-    console.error('Firestore stok hatası:', err);
-});
-
-// Ürün Fiyatları
-db.collection(PRODUCT_COLLECTION).onSnapshot(snapshot => {
-    allProducts = {};
-    const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Alfabetik sırala
-    prods.sort((a,b) => a.name.localeCompare(b.name, 'tr'));
+const updateUIVisibility = () => {
+    const isAdmin = currentUser && currentUser.role === 'admin';
     
-    const datalist = document.getElementById('productList');
-    datalist.innerHTML = '';
-    prods.forEach(p => {
-        allProducts[p.id] = p;
-        const opt = document.createElement('option');
-        opt.value = p.name;
-        datalist.appendChild(opt);
+    // Admin-only elements
+    document.querySelectorAll('.admin-only').forEach(el => {
+        el.classList.toggle('hidden', !isAdmin);
     });
-    processStokData();
+
+    // Permission-based panels
+    const canSeeMali = isAdmin || (currentUser && currentUser.perms && currentUser.perms.mali);
+    const canSeeStok = isAdmin || (currentUser && currentUser.perms && currentUser.perms.stok);
+
+    document.getElementById('toggleMaliAnaliz').parentElement.classList.toggle('hidden', !canSeeMali);
+    document.getElementById('toggleDepoStok').parentElement.classList.toggle('hidden', !canSeeStok);
+
+    // Forms should be hidden for non-admins
+    document.getElementById('dataForm').classList.toggle('hidden', !isAdmin);
+    document.getElementById('stokForm').classList.toggle('hidden', !isAdmin);
+    
+    // Hide help text for non-admins
+    document.querySelectorAll('.badge-hint').forEach(el => el.classList.toggle('hidden', !isAdmin));
+};
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('loginUser').value.toLowerCase();
+    const password = document.getElementById('loginPass').value;
+    const errorEl = document.getElementById('loginError');
+
+    try {
+        const userDoc = await db.collection(USER_COLLECTION).doc(username).get();
+        if (!userDoc.exists) {
+            errorEl.textContent = 'Kullanıcı bulunamadı!';
+            return;
+        }
+        const data = userDoc.data();
+        if (data.password !== password) {
+            errorEl.textContent = 'Hatalı şifre!';
+            return;
+        }
+
+        currentUser = { username, role: data.role, perms: data.perms };
+        localStorage.setItem('sultanahmet_user', JSON.stringify(currentUser));
+        document.getElementById('loginOverlay').classList.add('hidden');
+        updateUIVisibility();
+        initApp();
+        showToast(`Hoş geldiniz, ${username}!`);
+    } catch (err) {
+        console.error(err);
+        errorEl.textContent = 'Giriş hatası!';
+    }
 });
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+    localStorage.removeItem('sultanahmet_user');
+    location.reload();
+});
+
+// Admin Settings
+document.getElementById('btnSettings').addEventListener('click', async () => {
+    toggleModal('settingsModal', true);
+    renderUserManagement();
+});
+
+const renderUserManagement = async () => {
+    const body = document.getElementById('userManagementBody');
+    body.innerHTML = '<tr><td colspan="6">Yükleniyor...</td></tr>';
+    
+    const snap = await db.collection(USER_COLLECTION).get();
+    body.innerHTML = '';
+    
+    snap.docs.forEach(doc => {
+        const u = doc.data();
+        if (u.role === 'admin') return; // Admini düzenleme
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${doc.id}</td>
+            <td>${u.role}</td>
+            <td><input type="text" placeholder="Yeni şifre" id="pass_${doc.id}" style="width:100px; padding:4px"></td>
+            <td><input type="checkbox" id="perm_mali_${doc.id}" ${u.perms.mali ? 'checked' : ''}></td>
+            <td><input type="checkbox" id="perm_stok_${doc.id}" ${u.perms.stok ? 'checked' : ''}></td>
+            <td><button class="btn btn-success" onclick="updateUser('${doc.id}')">Güncelle</button></td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+window.updateUser = async (username) => {
+    const newPass = document.getElementById(`pass_${username}`).value;
+    const permMali = document.getElementById(`perm_mali_${username}`).checked;
+    const permStok = document.getElementById(`perm_stok_${username}`).checked;
+
+    const updateData = {
+        perms: { mali: permMali, stok: permStok }
+    };
+    if (newPass) updateData.password = newPass;
+
+    try {
+        await db.collection(USER_COLLECTION).doc(username).update(updateData);
+        showToast(`${username} güncellendi.`);
+        renderUserManagement();
+    } catch (e) {
+        showToast('Güncelleme hatası!', 'error');
+    }
+};
+
+const initApp = () => {
+    // Raporlar
+    db.collection(COLLECTION).orderBy('date', 'asc').onSnapshot(snapshot => {
+        allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderAll(allData);
+    });
+
+    // Stoklar
+    db.collection(STOK_COLLECTION).orderBy('date', 'desc').onSnapshot(snapshot => {
+        allStokData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        processStokData();
+    });
+
+    // Ürün Fiyatları
+    db.collection(PRODUCT_COLLECTION).onSnapshot(snapshot => {
+        allProducts = {};
+        const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        prods.sort((a,b) => a.name.localeCompare(b.name, 'tr'));
+        const datalist = document.getElementById('productList');
+        if (datalist) {
+            datalist.innerHTML = '';
+            prods.forEach(p => {
+                allProducts[p.id] = p;
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                datalist.appendChild(opt);
+            });
+        }
+        processStokData();
+    });
+};
+
+checkAuth();
 
 // ── FIREBASE: SAVE ─────────────────────────────────────────────
 const saveRecord = async (rec) => {
@@ -137,7 +255,7 @@ const updateKPIs = (data) => {
     document.getElementById('kpiTotal').textContent       = formatCurrency(totalRobot) + ' TL';
     document.getElementById('kpiKrediRatio').textContent  = `%${kRatio.toFixed(1)}`;
     document.getElementById('kpiNakitRatio').textContent  = `%${nRatio.toFixed(1)}`;
-    document.getElementById('kpiMobilRatio').textContent  = `%${mRatio.toFixed(1)}`;
+    document.getElementById('kpiMuhasebeRatio').textContent = `%${mRatio.toFixed(1)}`;
     document.getElementById('kpiDays').textContent         = data.length.toString();
 };
 
