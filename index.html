@@ -216,14 +216,54 @@
         </button>
         <div class="accordion-content" id="depoStokContent">
 
+            <!-- STOK FORM -->
             <section class="glass-panel">
                 <div class="section-header">
-                    <h2><i class="fa-solid fa-warehouse"></i> Stok Yönetimi</h2>
+                    <h2><i class="fa-solid fa-box-open"></i> Yeni Stok Çıkışı Ekle</h2>
                 </div>
-                <div class="empty-state">
-                    <i class="fa-solid fa-box-open" style="font-size:3rem; color:var(--accent-color); margin-bottom:1rem;"></i>
-                    <p style="font-size:1.1rem; color:#94a3b8;">Depo ve Stok modülü yakında aktif olacaktır.</p>
-                    <p style="font-size:0.85rem; color:#64748b; margin-top:0.5rem;">Bu bölümde ürün takibi, stok giriş/çıkış ve envanter raporları yer alacaktır.</p>
+                <form id="stokForm">
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Tarih</label>
+                            <input type="date" id="inputStokDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Ürün Adı</label>
+                            <input type="text" id="inputStokProduct" placeholder="Örn: Cips Patates" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Çıkış Miktarı</label>
+                            <input type="number" step="0.01" id="inputStokAmount" placeholder="0" required>
+                        </div>
+                        <div class="form-group form-submit-col" style="grid-column: span 3; display: flex; justify-content: flex-end;">
+                            <button type="submit" class="btn btn-primary" style="width: auto; padding: 0.7rem 2rem;"><i class="fa-solid fa-plus"></i> Ekle / Güncelle</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- STOK TABLE -->
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-list-check"></i> Stok Çıkış Kayıtları</h2>
+                    <span id="stokRecordCount" class="badge">0 Kayıt</span>
+                </div>
+                <div class="table-responsive">
+                    <table id="stokTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th>Ürün Adı</th>
+                                <th>Çıkış Miktarı</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stokTableBody"></tbody>
+                    </table>
+                    <div id="stokEmptyState" class="empty-state hidden">
+                        <i class="fa-solid fa-box-open"></i>
+                        <p>Henüz stok çıkış kaydı yok.</p>
+                    </div>
                 </div>
             </section>
 
