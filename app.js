@@ -1,6 +1,8 @@
 const COLLECTION = 'sultanahmet_raporlar';
+const STOK_COLLECTION = 'sultanahmet_stok';
 let chartInstance = null;
 let allData = [];
+let allStokData = [];
 
 // --- UTILS ---
 const formatCurrency = (amount) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount || 0);
@@ -11,7 +13,7 @@ const formatDate = (dateString) => {
 };
 
 // ── FIREBASE: REAL-TIME LISTENER ──────────────────────────────
-// Firestore'daki değişiklikler anında UI'a yansır
+// Raporlar
 db.collection(COLLECTION).orderBy('date', 'asc').onSnapshot(snapshot => {
     allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderAll(allData);
@@ -20,15 +22,32 @@ db.collection(COLLECTION).orderBy('date', 'asc').onSnapshot(snapshot => {
     showToast('Veritabanı bağlantı hatası!', 'error');
 });
 
+// Stoklar
+db.collection(STOK_COLLECTION).orderBy('date', 'desc').onSnapshot(snapshot => {
+    allStokData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderStokTable(allStokData);
+}, err => {
+    console.error('Firestore stok hatası:', err);
+});
+
 // ── FIREBASE: SAVE ─────────────────────────────────────────────
 const saveRecord = async (rec) => {
     try {
-        // merge: true sayesinde var olan diğer alanlar (manuel girişler vb) silinmez
         await db.collection(COLLECTION).doc(rec.id).set(rec, { merge: true });
         showToast('Kayıt başarıyla güncellendi ✓');
     } catch (e) {
         console.error(e);
         showToast('Kayıt sırasında hata oluştu!', 'error');
+    }
+};
+
+const saveStokRecord = async (rec) => {
+    try {
+        await db.collection(STOK_COLLECTION).doc(rec.id).set(rec, { merge: true });
+        showToast('Stok çıkışı başarıyla kaydedildi ✓');
+    } catch (e) {
+        console.error(e);
+        showToast('Stok kaydı sırasında hata!', 'error');
     }
 };
 
@@ -43,13 +62,27 @@ window.deleteRecord = async (id) => {
     }
 };
 
+window.deleteStokRecord = async (id) => {
+    if (!confirm('Bu stok kaydını silmek istediğinize emin misiniz?')) return;
+    try {
+        await db.collection(STOK_COLLECTION).doc(id).delete();
+        showToast('Stok kaydı silindi.');
+    } catch (e) {
+        showToast('Stok silme sırasında hata!', 'error');
+    }
+};
+
 // ── FIREBASE: CLEAR ALL ────────────────────────────────────────
 document.getElementById('btnClearData').addEventListener('click', async () => {
-    if (!confirm('TÜM verileri silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
+    if (!confirm('TÜM verileri (rapor ve stok) silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
     try {
         const snap = await db.collection(COLLECTION).get();
         const batch = db.batch();
         snap.docs.forEach(doc => batch.delete(doc.ref));
+        
+        const stokSnap = await db.collection(STOK_COLLECTION).get();
+        stokSnap.docs.forEach(doc => batch.delete(doc.ref));
+
         await batch.commit();
         showToast('Tüm veriler silindi.');
     } catch (e) {
@@ -126,6 +159,37 @@ const updateTable = (data) => {
             <td class="currency">${formatCurrency(item.cari)}</td>
             <td>
                 <button class="btn-icon" onclick="deleteRecord('${item.id}')" title="Sil">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+const renderStokTable = (data) => {
+    const body       = document.getElementById('stokTableBody');
+    const emptyState = document.getElementById('stokEmptyState');
+    const table      = document.getElementById('stokTable');
+    document.getElementById('stokRecordCount').textContent = `${data.length} Kayıt`;
+    body.innerHTML   = '';
+
+    if (data.length === 0) {
+        emptyState.classList.remove('hidden');
+        table.classList.add('hidden');
+        return;
+    }
+    emptyState.classList.add('hidden');
+    table.classList.remove('hidden');
+
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="white-space:nowrap;text-align:left">${formatDate(item.date)}</td>
+            <td style="text-align:left;font-weight:600">${item.productName}</td>
+            <td class="currency" style="color:#ef4444;font-weight:700">-${item.amount}</td>
+            <td>
+                <button class="btn-icon" onclick="deleteStokRecord('${item.id}')" title="Sil">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </td>
@@ -220,6 +284,35 @@ document.getElementById('dataForm').addEventListener('submit', async (e) => {
     recalcForm();
 });
 document.getElementById('inputDate').valueAsDate = new Date();
+
+document.getElementById('stokForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const date = document.getElementById('inputStokDate').value;
+    const productName = document.getElementById('inputStokProduct').value.toUpperCase('tr-TR');
+    const amount = parseFloat(document.getElementById('inputStokAmount').value) || 0;
+    
+    if (!date || !productName || amount <= 0) return;
+
+    // Her ürün/tarih kombinasyonu için benzersiz bir ID oluştur
+    // Örn: 20260429_CİPSPATATES
+    const productKey = productName.replace(/\s+/g, '');
+    const id = `${date.replace(/-/g, '')}_${productKey}`;
+
+    const rec = {
+        id,
+        date,
+        productName,
+        amount,
+        updatedAt: new Date().toISOString()
+    };
+    
+    await saveStokRecord(rec);
+    // Formu temizle
+    document.getElementById('inputStokProduct').value = '';
+    document.getElementById('inputStokAmount').value = '';
+    document.getElementById('inputStokProduct').focus();
+});
+document.getElementById('inputStokDate').valueAsDate = new Date();
 
 // ── FILE UPLOAD ────────────────────────────────────────────────
 const dropZone    = document.getElementById('dropZone');
