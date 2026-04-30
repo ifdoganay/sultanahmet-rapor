@@ -301,7 +301,12 @@
             <section class="glass-panel">
                 <div class="section-header">
                     <h2><i class="fa-solid fa-warehouse"></i> Anlık Stok Durumu & Envanter Değeri</h2>
-                    <div class="header-actions" style="margin: 0;">
+                    <div class="header-actions" style="margin: 0; gap: 0.75rem;">
+                         <select id="stokStatusFilter" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 20px; color: white; font-size: 0.8rem;">
+                             <option value="ACTIVE">Sadece Aktifler</option>
+                             <option value="PASSIVE">Sadece Pasifler</option>
+                             <option value="ALL">Tüm Ürünler</option>
+                         </select>
                          <input type="text" id="stokSearch" placeholder="Ürün ara..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem 0.8rem; border-radius: 20px; color: white; font-size: 0.8rem;">
                     </div>
                 </div>
@@ -317,6 +322,7 @@
                                 <th>Toplam Giriş</th>
                                 <th>Toplam Çıkış</th>
                                 <th>Son Sayım</th>
+                                <th class="admin-only hidden">İşlem</th>
                             </tr>
                         </thead>
                         <tbody id="stokStatusBody"></tbody>
