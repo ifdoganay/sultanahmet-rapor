@@ -278,51 +278,58 @@ tbody tr:hover { background: rgba(255,255,255,0.025); }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 
 /* ── RESPONSIVE DESIGN (Enhanced Mobile) ── */
-@media (max-width: 1200px) {
-    .app-container { padding: 1rem; }
+@media (max-width: 1024px) {
     .top-row { grid-template-columns: 1fr; }
-    .form-row-4 { grid-template-columns: repeat(2, 1fr); }
+    .chart-container { height: 300px; }
 }
 
 @media (max-width: 768px) {
-    body { padding: 0.75rem; }
-    .app-header { flex-direction: column; text-align: center; gap: 1rem; }
-    .header-actions { justify-content: center; width: 100%; }
-    .btn { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+    body { padding: 0.5rem; }
+    .app-container { gap: 1rem; }
     
+    .app-header { flex-direction: column; text-align: center; gap: 1.25rem; padding: 1.25rem; }
+    .logo-area { flex-direction: column; gap: 0.5rem; }
+    .header-actions { justify-content: center; width: 100%; gap: 0.5rem; }
+    .btn { width: 100%; justify-content: center; }
+
     .kpi-grid { grid-template-columns: 1fr; }
-    .kpi-card { padding: 1rem; }
+    .kpi-card { padding: 1.25rem; }
     
-    .form-row-3, .form-row-4 { grid-template-columns: 1fr; gap: 0.5rem; }
+    .accordion-toggle { padding: 1rem; font-size: 1rem; }
+    .accordion-content.open { padding: 1rem; gap: 1rem; }
+
+    .form-row-3, .form-row-4 { grid-template-columns: 1fr; gap: 1rem; }
     .form-row-date { grid-template-columns: 1fr; }
     
     .section-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-    .badge-hint { font-size: 0.7rem; }
     
     /* Table optimizations for mobile */
     .table-responsive {
-        margin: 0 -1rem; /* Full bleed on mobile */
-        padding: 0 1rem;
-        -webkit-overflow-scrolling: touch;
+        margin: 0 -0.5rem;
+        padding: 0 0.5rem;
+        border-radius: 0;
     }
     
-    table { font-size: 0.75rem; }
-    th, td { padding: 0.5rem; }
+    table { font-size: 0.7rem; }
+    th, td { padding: 0.6rem 0.4rem; }
     
-    /* Optional: Sticky first column for mobile */
+    /* Sticky first column for readability on mobile */
     td:first-child, th:first-child {
         position: sticky;
         left: 0;
-        background: #1e293b !important; /* Solid opaque color matching panel-bg */
+        background: #1e293b !important;
         z-index: 10;
-        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+        box-shadow: 2px 0 5px rgba(0,0,0,0.3);
+        min-width: 80px;
     }
-}
 
+    .login-card { width: 95%; padding: 1.5rem; }
+    .modal-content { width: 98%; padding: 1rem; }
+}
 
 @media (max-width: 480px) {
     .logo-text h1 { font-size: 1.1rem; }
-    .logo-icon { font-size: 1.8rem; }
     .kpi-info p { font-size: 1.1rem; }
+    .chart-container { height: 250px; }
 }
 
