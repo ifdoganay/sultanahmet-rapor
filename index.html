@@ -54,149 +54,196 @@
         </div>
     </header>
 
-    <!-- KPI CARDS -->
-    <div class="kpi-grid">
-        <div class="kpi-card glass-panel">
-            <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
-            <div class="kpi-info"><h3>ROBOTPOS TOPLAM</h3><p id="kpiTotal">0,00 TL</p></div>
-        </div>
-        <div class="kpi-card glass-panel">
-            <div class="kpi-icon kredit"><i class="fa-solid fa-credit-card"></i></div>
-            <div class="kpi-info"><h3>Kredi Kartı Oranı</h3><p id="kpiKrediRatio">%0</p></div>
-        </div>
-        <div class="kpi-card glass-panel">
-            <div class="kpi-icon amber"><i class="fa-solid fa-calendar-day"></i></div>
-            <div class="kpi-info"><h3>Kayıtlı Gün</h3><p id="kpiDays">0</p></div>
-        </div>
-    </div>
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 1: MALİ ANALİZ (Açılır Pencere / Accordion) -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle active" id="toggleMaliAnaliz" onclick="toggleAccordion('maliAnalizContent', this)">
+            <span><i class="fa-solid fa-coins"></i> Mali Analiz</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content open" id="maliAnalizContent">
 
-    <!-- FILE UPLOAD + CHART side by side -->
-    <div class="top-row">
-        <section class="glass-panel upload-section">
-            <div class="section-header">
-                <h2><i class="fa-solid fa-cloud-arrow-up"></i> Dosya Yükle (PDF / Excel)</h2>
-            </div>
-            <div class="upload-area" id="dropZone">
-                <i class="fa-solid fa-file-arrow-up"></i>
-                <p>PDF veya Excel dosyanızı buraya sürükleyin</p>
-                <p class="text-sm">veya</p>
-                <input type="file" id="fileInput" accept=".pdf,.xls,.xlsx" multiple hidden>
-                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Dosya Seç</button>
-            </div>
-            <div id="uploadStatus" class="upload-status"></div>
-        </section>
-
-        <section class="glass-panel chart-section">
-            <div class="section-header">
-                <h2><i class="fa-solid fa-chart-line"></i> Karşılaştırmalı Analiz</h2>
-            </div>
-            <div class="chart-container">
-                <canvas id="revenueChart"></canvas>
-            </div>
-        </section>
-    </div>
-
-    <!-- MANUAL ENTRY FORM - FULL WIDTH -->
-    <section class="glass-panel">
-        <div class="section-header">
-            <h2><i class="fa-solid fa-keyboard"></i> Manuel Veri Girişi</h2>
-            <span class="badge-hint"><i class="fa-solid fa-bolt"></i> Fark ve Toplam alanları otomatik hesaplanır</span>
-        </div>
-        <form id="dataForm">
-            <!-- ROW 1: Tarih -->
-            <div class="form-row-date">
-                <div class="form-group">
-                    <label>Tarih</label>
-                    <input type="date" id="inputDate" required>
+            <!-- KPI CARDS -->
+            <div class="kpi-grid">
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
+                    <div class="kpi-info"><h3>ROBOTPOS TOPLAM</h3><p id="kpiTotal">0,00 TL</p></div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon kredit"><i class="fa-solid fa-credit-card"></i></div>
+                    <div class="kpi-info"><h3>Kredi Kartı Oranı</h3><p id="kpiKrediRatio">%0</p></div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon amber"><i class="fa-solid fa-calendar-day"></i></div>
+                    <div class="kpi-info"><h3>Kayıtlı Gün</h3><p id="kpiDays">0</p></div>
                 </div>
             </div>
 
-            <!-- SECTION LABEL -->
-            <div class="form-section-label">EFT</div>
-            <div class="form-row-3">
-                <div class="form-group"><label>ROBOTPOS EFT</label><input type="number" step="0.01" id="inputRobotEft" placeholder="0.00"></div>
-                <div class="form-group"><label>MUHASEBE EFT</label><input type="number" step="0.01" id="inputMuhasebeEft" placeholder="0.00"></div>
-                <div class="form-group"><label>EFT FARK</label><input type="number" step="0.01" id="inputEftFark" class="calc-field" readonly></div>
+            <!-- FILE UPLOAD + CHART side by side -->
+            <div class="top-row">
+                <section class="glass-panel upload-section">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-cloud-arrow-up"></i> Dosya Yükle (PDF / Excel)</h2>
+                    </div>
+                    <div class="upload-area" id="dropZone">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                        <p>PDF veya Excel dosyanızı buraya sürükleyin</p>
+                        <p class="text-sm">veya</p>
+                        <input type="file" id="fileInput" accept=".pdf,.xls,.xlsx" multiple hidden>
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Dosya Seç</button>
+                    </div>
+                    <div id="uploadStatus" class="upload-status"></div>
+                </section>
+
+                <section class="glass-panel chart-section">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-chart-line"></i> Karşılaştırmalı Analiz</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </section>
             </div>
 
-            <div class="form-section-label">NAKİT</div>
-            <div class="form-row-4">
-                <div class="form-group"><label>KASA NAKİT</label><input type="number" step="0.01" id="inputKasaNakit" placeholder="0.00"></div>
-                <div class="form-group"><label>ROBOTPOS NAKİT</label><input type="number" step="0.01" id="inputRobotNakit" placeholder="0.00"></div>
-                <div class="form-group"><label>MUHASEBE NAKİT</label><input type="number" step="0.01" id="inputMuhasebeNakit" placeholder="0.00"></div>
-                <div class="form-group"><label>POS - ROBOT NAKİT FARK</label><input type="number" step="0.01" id="inputPosRobotNakitFark" class="calc-field" readonly></div>
-            </div>
-
-            <div class="form-section-label">KREDİ KARTI</div>
-            <div class="form-row-3">
-                <div class="form-group"><label>ROBOTPOS KREDİ KARTI</label><input type="number" step="0.01" id="inputRobotKredi" placeholder="0.00"></div>
-                <div class="form-group"><label>MUHASEBE KREDİ KARTI</label><input type="number" step="0.01" id="inputMuhasebeKredi" placeholder="0.00"></div>
-                <div class="form-group"><label>KREDİ KART FARK</label><input type="number" step="0.01" id="inputKrediFark" class="calc-field" readonly></div>
-            </div>
-
-            <div class="form-section-label">TOPLAMLAR & FARKLAR</div>
-            <div class="form-row-4">
-                <div class="form-group"><label>ROBOTPOS TOPLAM</label><input type="number" step="0.01" id="inputRobotToplam" class="calc-field" readonly></div>
-                <div class="form-group"><label>MUHASEBE TOPLAM</label><input type="number" step="0.01" id="inputMuhasebeToplam" class="calc-field" readonly></div>
-                <div class="form-group"><label>KASA - ROBOT FARK</label><input type="number" step="0.01" id="inputKasaRobotFark" class="calc-field" readonly></div>
-                <div class="form-group"><label>KASA NAKİT FARK TOPLAM</label><input type="number" step="0.01" id="inputKasaNakitFarkToplam" class="calc-field highlight-field" readonly></div>
-            </div>
-
-            <div class="form-section-label">DİĞER</div>
-            <div class="form-row-3">
-                <div class="form-group"><label>YEMEK KARTLARI</label><input type="number" step="0.01" id="inputYemek" placeholder="0.00"></div>
-                <div class="form-group"><label>CARİ</label><input type="number" step="0.01" id="inputCari" placeholder="0.00"></div>
-                <div class="form-group form-submit-col">
-                    <label>&nbsp;</label>
-                    <button type="submit" class="btn btn-primary btn-submit"><i class="fa-solid fa-plus"></i> Kaydet</button>
+            <!-- MANUAL ENTRY FORM - FULL WIDTH -->
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-keyboard"></i> Manuel Veri Girişi</h2>
+                    <span class="badge-hint"><i class="fa-solid fa-bolt"></i> Fark ve Toplam alanları otomatik hesaplanır</span>
                 </div>
-            </div>
-        </form>
-    </section>
+                <form id="dataForm">
+                    <!-- ROW 1: Tarih -->
+                    <div class="form-row-date">
+                        <div class="form-group">
+                            <label>Tarih</label>
+                            <input type="date" id="inputDate" required>
+                        </div>
+                    </div>
 
-    <!-- DATA TABLE - FULL WIDTH -->
-    <section class="glass-panel">
-        <div class="section-header">
-            <h2><i class="fa-solid fa-list"></i> Kayıtlı Veriler</h2>
-            <span id="recordCount" class="badge">0 Kayıt</span>
-        </div>
-        <div class="table-responsive">
-            <table id="dataTable">
-                <thead>
-                    <tr>
-                        <th>Tarih</th>
-                        <th>ROBOTPOS EFT</th>
-                        <th>MUHASEBE EFT</th>
-                        <th class="fark-col">EFT FARK</th>
-                        <th>KASA NAKİT</th>
-                        <th>ROBOTPOS NAKİT</th>
-                        <th>MUHASEBE NAKİT</th>
-                        <th class="fark-col">POS-ROBOT NAKİT FARK</th>
-                        <th>ROBOTPOS KREDİ KARTI</th>
-                        <th>MUHASEBE KREDİ KARTI</th>
-                        <th class="fark-col">KREDİ KART FARK</th>
-                        <th class="toplam-col">ROBOTPOS TOPLAM</th>
-                        <th class="toplam-col">MUHASEBE TOPLAM</th>
-                        <th class="fark-col">KASA - ROBOT FARK</th>
-                        <th class="toplam-col">KASA NAKİT FARK TOPLAM</th>
-                        <th>YEMEK KARTLARI</th>
-                        <th>CARİ</th>
-                        <th>İşlem</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-            <div id="emptyState" class="empty-state hidden">
-                <i class="fa-solid fa-folder-open"></i>
-                <p>Henüz veri yok. Dosya yükleyin veya manuel girin.</p>
-            </div>
-        </div>
-    </section>
+                    <!-- SECTION LABEL -->
+                    <div class="form-section-label">EFT</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>ROBOTPOS EFT</label><input type="number" step="0.01" id="inputRobotEft" placeholder="0.00"></div>
+                        <div class="form-group"><label>MUHASEBE EFT</label><input type="number" step="0.01" id="inputMuhasebeEft" placeholder="0.00"></div>
+                        <div class="form-group"><label>EFT FARK</label><input type="number" step="0.01" id="inputEftFark" class="calc-field" readonly></div>
+                    </div>
+
+                    <div class="form-section-label">NAKİT</div>
+                    <div class="form-row-4">
+                        <div class="form-group"><label>KASA NAKİT</label><input type="number" step="0.01" id="inputKasaNakit" placeholder="0.00"></div>
+                        <div class="form-group"><label>ROBOTPOS NAKİT</label><input type="number" step="0.01" id="inputRobotNakit" placeholder="0.00"></div>
+                        <div class="form-group"><label>MUHASEBE NAKİT</label><input type="number" step="0.01" id="inputMuhasebeNakit" placeholder="0.00"></div>
+                        <div class="form-group"><label>POS - ROBOT NAKİT FARK</label><input type="number" step="0.01" id="inputPosRobotNakitFark" class="calc-field" readonly></div>
+                    </div>
+
+                    <div class="form-section-label">KREDİ KARTI</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>ROBOTPOS KREDİ KARTI</label><input type="number" step="0.01" id="inputRobotKredi" placeholder="0.00"></div>
+                        <div class="form-group"><label>MUHASEBE KREDİ KARTI</label><input type="number" step="0.01" id="inputMuhasebeKredi" placeholder="0.00"></div>
+                        <div class="form-group"><label>KREDİ KART FARK</label><input type="number" step="0.01" id="inputKrediFark" class="calc-field" readonly></div>
+                    </div>
+
+                    <div class="form-section-label">TOPLAMLAR & FARKLAR</div>
+                    <div class="form-row-4">
+                        <div class="form-group"><label>ROBOTPOS TOPLAM</label><input type="number" step="0.01" id="inputRobotToplam" class="calc-field" readonly></div>
+                        <div class="form-group"><label>MUHASEBE TOPLAM</label><input type="number" step="0.01" id="inputMuhasebeToplam" class="calc-field" readonly></div>
+                        <div class="form-group"><label>KASA - ROBOT FARK</label><input type="number" step="0.01" id="inputKasaRobotFark" class="calc-field" readonly></div>
+                        <div class="form-group"><label>KASA NAKİT FARK TOPLAM</label><input type="number" step="0.01" id="inputKasaNakitFarkToplam" class="calc-field highlight-field" readonly></div>
+                    </div>
+
+                    <div class="form-section-label">DİĞER</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>YEMEK KARTLARI</label><input type="number" step="0.01" id="inputYemek" placeholder="0.00"></div>
+                        <div class="form-group"><label>CARİ</label><input type="number" step="0.01" id="inputCari" placeholder="0.00"></div>
+                        <div class="form-group form-submit-col">
+                            <label>&nbsp;</label>
+                            <button type="submit" class="btn btn-primary btn-submit"><i class="fa-solid fa-plus"></i> Kaydet</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- DATA TABLE - FULL WIDTH -->
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-list"></i> Kayıtlı Veriler</h2>
+                    <span id="recordCount" class="badge">0 Kayıt</span>
+                </div>
+                <div class="table-responsive">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th>ROBOTPOS EFT</th>
+                                <th>MUHASEBE EFT</th>
+                                <th class="fark-col">EFT FARK</th>
+                                <th>KASA NAKİT</th>
+                                <th>ROBOTPOS NAKİT</th>
+                                <th>MUHASEBE NAKİT</th>
+                                <th class="fark-col">POS-ROBOT NAKİT FARK</th>
+                                <th>ROBOTPOS KREDİ KARTI</th>
+                                <th>MUHASEBE KREDİ KARTI</th>
+                                <th class="fark-col">KREDİ KART FARK</th>
+                                <th class="toplam-col">ROBOTPOS TOPLAM</th>
+                                <th class="toplam-col">MUHASEBE TOPLAM</th>
+                                <th class="fark-col">KASA - ROBOT FARK</th>
+                                <th class="toplam-col">KASA NAKİT FARK TOPLAM</th>
+                                <th>YEMEK KARTLARI</th>
+                                <th>CARİ</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                    <div id="emptyState" class="empty-state hidden">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <p>Henüz veri yok. Dosya yükleyin veya manuel girin.</p>
+                    </div>
+                </div>
+            </section>
+
+        </div><!-- /maliAnalizContent -->
+    </div><!-- /accordion-panel -->
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 2: DEPO - STOK (Açılır Pencere / Accordion) -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle" id="toggleDepoStok" onclick="toggleAccordion('depoStokContent', this)">
+            <span><i class="fa-solid fa-boxes-stacked"></i> Depo - Stok</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content" id="depoStokContent">
+
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-warehouse"></i> Stok Yönetimi</h2>
+                </div>
+                <div class="empty-state">
+                    <i class="fa-solid fa-box-open" style="font-size:3rem; color:var(--accent-color); margin-bottom:1rem;"></i>
+                    <p style="font-size:1.1rem; color:#94a3b8;">Depo ve Stok modülü yakında aktif olacaktır.</p>
+                    <p style="font-size:0.85rem; color:#64748b; margin-top:0.5rem;">Bu bölümde ürün takibi, stok giriş/çıkış ve envanter raporları yer alacaktır.</p>
+                </div>
+            </section>
+
+        </div><!-- /depoStokContent -->
+    </div><!-- /accordion-panel -->
 
 </div>
 
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // Accordion toggle fonksiyonu
+    function toggleAccordion(contentId, btn) {
+        const content = document.getElementById(contentId);
+        const isOpen = content.classList.contains('open');
+        
+        // Tıklanan paneli aç/kapa
+        content.classList.toggle('open');
+        btn.classList.toggle('active');
+    }
 </script>
 <script src="app.js"></script>
 </body>
