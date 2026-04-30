@@ -374,12 +374,12 @@ const renderStokStatus = (status) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="text-align:left;font-weight:600">${s.name}</td>
+            <td style="font-weight:700; color:${s.balance > 0 ? 'var(--success)' : 'var(--danger)'}">${s.balance}</td>
             <td>${formatCurrency(s.price)}</td>
-            <td style="color:var(--text-muted)">${s.count} (${formatDate(s.lastCountDate)})</td>
+            <td class="toplam-col">${formatCurrency(rowVal)}</td>
             <td style="color:var(--success)">+${s.in}</td>
             <td style="color:var(--danger)">-${s.out}</td>
-            <td style="font-weight:700; color:${s.balance > 0 ? 'var(--success)' : 'var(--danger)'}">${s.balance}</td>
-            <td class="toplam-col">${formatCurrency(rowVal)}</td>
+            <td style="color:var(--text-muted)">${s.count} (${formatDate(s.lastCountDate)})</td>
         `;
         body.appendChild(tr);
     });
