@@ -122,14 +122,22 @@ const renderAll = (data) => {
 };
 
 const updateKPIs = (data) => {
-    let totalRobot = 0, totalKredi = 0;
+    let totalRobot = 0, totalKredi = 0, totalNakit = 0, totalMobil = 0;
     data.forEach(d => {
         totalRobot  += (d.robotEft||0) + (d.robotNakit||0) + (d.robotKredi||0) + (d.yemek||0) + (d.cari||0);
         totalKredi  += (d.robotKredi||0);
+        totalNakit  += (d.robotNakit||0);
+        totalMobil  += (d.robotEft||0);
     });
-    const ratio = totalRobot > 0 ? (totalKredi / totalRobot) * 100 : 0;
+    
+    const kRatio = totalRobot > 0 ? (totalKredi / totalRobot) * 100 : 0;
+    const nRatio = totalRobot > 0 ? (totalNakit / totalRobot) * 100 : 0;
+    const mRatio = totalRobot > 0 ? (totalMobil / totalRobot) * 100 : 0;
+
     document.getElementById('kpiTotal').textContent       = formatCurrency(totalRobot) + ' TL';
-    document.getElementById('kpiKrediRatio').textContent  = `%${ratio.toFixed(1)}`;
+    document.getElementById('kpiKrediRatio').textContent  = `%${kRatio.toFixed(1)}`;
+    document.getElementById('kpiNakitRatio').textContent  = `%${nRatio.toFixed(1)}`;
+    document.getElementById('kpiMobilRatio').textContent  = `%${mRatio.toFixed(1)}`;
     document.getElementById('kpiDays').textContent         = data.length.toString();
 };
 
