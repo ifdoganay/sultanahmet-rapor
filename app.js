@@ -326,6 +326,7 @@ const processStokData = () => {
             name: allProducts[slug].name, 
             price: allProducts[slug].price || 0,
             unit: allProducts[slug].unit || '',
+            isActive: allProducts[slug].isActive !== false, // default true
             count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00'
         };
     });
@@ -360,19 +361,43 @@ const processStokData = () => {
 
 const renderStokStatus = (status) => {
     const body = document.getElementById('stokStatusBody');
+    const filter = document.getElementById('stokStatusFilter').value;
+    const isAdmin = currentUser && currentUser.role === 'admin';
     body.innerHTML = '';
     
     let totalVal = 0;
     let criticalCount = 0;
     let prodCount = 0;
 
-    Object.values(status).forEach(s => {
+    Object.keys(status).forEach(slug => {
+        const s = status[slug];
+        
+        // Filter logic
+        if (filter === 'ACTIVE' && !s.isActive) return;
+        if (filter === 'PASSIVE' && s.isActive) return;
+
         const rowVal = s.balance * s.price;
         totalVal += rowVal;
         prodCount++;
         if (s.balance <= 0) criticalCount++;
 
         const tr = document.createElement('tr');
+        tr.style.opacity = s.isActive ? '1' : '0.5';
+
+        let actionHtml = '';
+        if (isAdmin) {
+            actionHtml = `
+                <td class="admin-only">
+                    <button class="btn-icon" onclick="toggleProductStatus('${slug}', ${s.isActive})" title="${s.isActive ? 'Pasife Al' : 'Aktife Al'}">
+                        <i class="fa-solid ${s.isActive ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>
+                    <button class="btn-icon" onclick="deleteProductMaster('${slug}', '${s.name}')" title="Ürünü Tamamen Sil">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+        }
+
         tr.innerHTML = `
             <td style="text-align:left;font-weight:600; cursor:pointer;" onclick="editProductName('${s.name}')" title="Düzenlemek için tıklayın">
                 ${s.name} <i class="fa-solid fa-pen-to-square" style="font-size:0.7rem; opacity:0.5"></i>
@@ -384,6 +409,7 @@ const renderStokStatus = (status) => {
             <td style="color:var(--success)">+${s.in}</td>
             <td style="color:var(--danger)">-${s.out}</td>
             <td style="color:var(--text-muted)">${s.count} (${formatDate(s.lastCountDate)})</td>
+            ${actionHtml}
         `;
         body.appendChild(tr);
     });
@@ -391,6 +417,40 @@ const renderStokStatus = (status) => {
     document.getElementById('kpiStokCount').textContent = prodCount;
     document.getElementById('kpiStokValue').textContent = formatCurrency(totalVal) + ' TL';
     document.getElementById('kpiStokCritical').textContent = criticalCount;
+    
+    // Admin yetkisini tekrar kontrol et (yeni eklenen satırlar için)
+    updateUIVisibility();
+};
+
+document.getElementById('stokStatusFilter').addEventListener('change', () => processStokData());
+
+window.toggleProductStatus = async (slug, currentStatus) => {
+    try {
+        await db.collection(PRODUCT_COLLECTION).doc(slug).update({
+            isActive: !currentStatus,
+            updatedAt: new Date().toISOString()
+        });
+        showToast(`Ürün ${!currentStatus ? 'aktif' : 'pasif'} hale getirildi.`);
+    } catch (e) {
+        showToast('Hata oluştu!', 'error');
+    }
+};
+
+window.deleteProductMaster = async (slug, name) => {
+    if (!confirm(`${name} isimli ürünü ve tüm hareket geçmişini silmek istediğinize emin misiniz?`)) return;
+    try {
+        const batch = db.batch();
+        // 1. Master sil
+        batch.delete(db.collection(PRODUCT_COLLECTION).doc(slug));
+        // 2. Hareketleri sil
+        const snap = await db.collection(STOK_COLLECTION).where('productName', '==', name).get();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        
+        await batch.commit();
+        showToast('Ürün tamamen silindi.');
+    } catch (e) {
+        showToast('Silme hatası!', 'error');
+    }
 };
 
 const renderStokTable = (data) => {
