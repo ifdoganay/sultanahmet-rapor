@@ -1,8 +1,10 @@
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
+const PRODUCT_COLLECTION = 'sultanahmet_products';
 let chartInstance = null;
 let allData = [];
 let allStokData = [];
+let allProducts = {}; // { slug: { name, price } }
 
 // --- UTILS ---
 const formatCurrency = (amount) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount || 0);
@@ -25,9 +27,24 @@ db.collection(COLLECTION).orderBy('date', 'asc').onSnapshot(snapshot => {
 // Stoklar
 db.collection(STOK_COLLECTION).orderBy('date', 'desc').onSnapshot(snapshot => {
     allStokData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    renderStokTable(allStokData);
+    processStokData();
 }, err => {
     console.error('Firestore stok hatası:', err);
+});
+
+// Ürün Fiyatları
+db.collection(PRODUCT_COLLECTION).onSnapshot(snapshot => {
+    allProducts = {};
+    const datalist = document.getElementById('productList');
+    datalist.innerHTML = '';
+    snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        allProducts[doc.id] = data;
+        const opt = document.createElement('option');
+        opt.value = data.name;
+        datalist.appendChild(opt);
+    });
+    processStokData();
 });
 
 // ── FIREBASE: SAVE ─────────────────────────────────────────────
@@ -74,14 +91,17 @@ window.deleteStokRecord = async (id) => {
 
 // ── FIREBASE: CLEAR ALL ────────────────────────────────────────
 document.getElementById('btnClearData').addEventListener('click', async () => {
-    if (!confirm('TÜM verileri (rapor ve stok) silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
+    if (!confirm('TÜM verileri (rapor, stok, ürünler) silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
     try {
-        const snap = await db.collection(COLLECTION).get();
         const batch = db.batch();
+        const snap = await db.collection(COLLECTION).get();
         snap.docs.forEach(doc => batch.delete(doc.ref));
         
         const stokSnap = await db.collection(STOK_COLLECTION).get();
         stokSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+        const prodSnap = await db.collection(PRODUCT_COLLECTION).get();
+        prodSnap.docs.forEach(doc => batch.delete(doc.ref));
 
         await batch.commit();
         showToast('Tüm veriler silindi.');
@@ -167,6 +187,79 @@ const updateTable = (data) => {
     });
 };
 
+const processStokData = () => {
+    // 1. Hesapla
+    const status = {}; // { slug: { name, price, count: 0, in: 0, out: 0, balance: 0, lastCountDate: '' } }
+
+    // Önce ürünleri baz al
+    Object.keys(allProducts).forEach(slug => {
+        status[slug] = { 
+            name: allProducts[slug].name, 
+            price: allProducts[slug].price || 0,
+            count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00'
+        };
+    });
+
+    // Hareketleri işle (Tarihe göre sıralı işlemek önemli)
+    const sortedMoves = [...allStokData].sort((a,b) => a.date.localeCompare(b.date));
+    
+    sortedMoves.forEach(m => {
+        const slug = m.productName.toUpperCase('tr-TR').replace(/\s+/g, '');
+        if (!status[slug]) {
+             status[slug] = { name: m.productName, price: 0, count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00' };
+        }
+
+        if (m.type === 'COUNT') {
+            status[slug].count = m.amount;
+            status[slug].balance = m.amount; // Sayım stok seviyesini resetler
+            status[slug].in = 0; // Sayımdan sonrakileri takip etmek için sıfırla (görsel tercih)
+            status[slug].out = 0;
+            status[slug].lastCountDate = m.date;
+        } else if (m.type === 'IN') {
+            status[slug].in += m.amount;
+            status[slug].balance += m.amount;
+        } else if (m.type === 'OUT') {
+            status[slug].out += m.amount;
+            status[slug].balance -= m.amount;
+        }
+    });
+
+    renderStokStatus(status);
+    renderStokTable(allStokData);
+};
+
+const renderStokStatus = (status) => {
+    const body = document.getElementById('stokStatusBody');
+    body.innerHTML = '';
+    
+    let totalVal = 0;
+    let criticalCount = 0;
+    let prodCount = 0;
+
+    Object.values(status).forEach(s => {
+        const rowVal = s.balance * s.price;
+        totalVal += rowVal;
+        prodCount++;
+        if (s.balance <= 0) criticalCount++;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="text-align:left;font-weight:600">${s.name}</td>
+            <td>${formatCurrency(s.price)}</td>
+            <td style="color:var(--text-muted)">${s.count} (${formatDate(s.lastCountDate)})</td>
+            <td style="color:var(--success)">+${s.in}</td>
+            <td style="color:var(--danger)">-${s.out}</td>
+            <td style="font-weight:700; color:${s.balance > 0 ? 'var(--success)' : 'var(--danger)'}">${s.balance}</td>
+            <td class="toplam-col">${formatCurrency(rowVal)}</td>
+        `;
+        body.appendChild(tr);
+    });
+
+    document.getElementById('kpiStokCount').textContent = prodCount;
+    document.getElementById('kpiStokValue').textContent = formatCurrency(totalVal) + ' TL';
+    document.getElementById('kpiStokCritical').textContent = criticalCount;
+};
+
 const renderStokTable = (data) => {
     const body       = document.getElementById('stokTableBody');
     const emptyState = document.getElementById('stokEmptyState');
@@ -184,10 +277,14 @@ const renderStokTable = (data) => {
 
     data.forEach(item => {
         const tr = document.createElement('tr');
+        const typeLabels = { 'IN': 'GİRİŞ', 'OUT': 'ÇIKIŞ', 'COUNT': 'SAYIM' };
+        const typeColors = { 'IN': 'var(--success)', 'OUT': 'var(--danger)', 'COUNT': 'var(--primary)' };
+        
         tr.innerHTML = `
             <td style="white-space:nowrap;text-align:left">${formatDate(item.date)}</td>
+            <td style="color:${typeColors[item.type]}; font-weight:bold; font-size:0.7rem">${typeLabels[item.type]}</td>
             <td style="text-align:left;font-weight:600">${item.productName}</td>
-            <td class="currency" style="color:#ef4444;font-weight:700">-${item.amount}</td>
+            <td class="currency" style="font-weight:700">${item.type === 'OUT' ? '-' : (item.type === 'IN' ? '+' : '=')}${item.amount}</td>
             <td>
                 <button class="btn-icon" onclick="deleteStokRecord('${item.id}')" title="Sil">
                     <i class="fa-solid fa-trash"></i>
@@ -288,30 +385,55 @@ document.getElementById('inputDate').valueAsDate = new Date();
 document.getElementById('stokForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const date = document.getElementById('inputStokDate').value;
-    const productName = document.getElementById('inputStokProduct').value.toUpperCase('tr-TR');
+    const type = document.getElementById('inputStokType').value;
+    const productName = document.getElementById('inputStokProduct').value.trim().toUpperCase('tr-TR');
     const amount = parseFloat(document.getElementById('inputStokAmount').value) || 0;
+    const price  = parseFloat(document.getElementById('inputStokPrice').value) || 0;
     
-    if (!date || !productName || amount <= 0) return;
+    if (!date || !productName || amount < 0) return;
 
-    // Her ürün/tarih kombinasyonu için benzersiz bir ID oluştur
-    // Örn: 20260429_CİPSPATATES
-    const productKey = productName.replace(/\s+/g, '');
-    const id = `${date.replace(/-/g, '')}_${productKey}`;
+    const productSlug = productName.replace(/\s+/g, '');
+    
+    // 1. Ürün bilgilerini (fiyat) güncelle
+    if (price > 0 || !allProducts[productSlug]) {
+        await db.collection(PRODUCT_COLLECTION).doc(productSlug).set({
+            name: productName,
+            price: price || (allProducts[productSlug] ? allProducts[productSlug].price : 0),
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    }
+
+    // 2. Hareketi kaydet (Benzersiz ID: Tarih + Tip + Ürün)
+    const id = `${date.replace(/-/g, '')}_${type}_${productSlug}_${Date.now()}`;
 
     const rec = {
         id,
         date,
+        type,
         productName,
         amount,
         updatedAt: new Date().toISOString()
     };
     
     await saveStokRecord(rec);
+    
     // Formu temizle
     document.getElementById('inputStokProduct').value = '';
     document.getElementById('inputStokAmount').value = '';
+    document.getElementById('inputStokPrice').value  = '';
     document.getElementById('inputStokProduct').focus();
 });
+
+// Arama Filtresi
+document.getElementById('stokSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toUpperCase('tr-TR');
+    const rows = document.querySelectorAll('#stokStatusBody tr');
+    rows.forEach(row => {
+        const text = row.cells[0].textContent.toUpperCase('tr-TR');
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+});
+
 document.getElementById('inputStokDate').valueAsDate = new Date();
 
 // ── FILE UPLOAD ────────────────────────────────────────────────
