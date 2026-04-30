@@ -325,6 +325,7 @@ const processStokData = () => {
         status[slug] = { 
             name: allProducts[slug].name, 
             price: allProducts[slug].price || 0,
+            unit: allProducts[slug].unit || '',
             count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00'
         };
     });
@@ -373,7 +374,10 @@ const renderStokStatus = (status) => {
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="text-align:left;font-weight:600">${s.name}</td>
+            <td style="text-align:left;font-weight:600; cursor:pointer;" onclick="editProductName('${s.name}')" title="Düzenlemek için tıklayın">
+                ${s.name} <i class="fa-solid fa-pen-to-square" style="font-size:0.7rem; opacity:0.5"></i>
+            </td>
+            <td style="font-size:0.8rem; color:var(--text-muted)">${s.unit || '-'}</td>
             <td style="font-weight:700; color:${s.balance > 0 ? 'var(--success)' : 'var(--danger)'}">${s.balance}</td>
             <td>${formatCurrency(s.price)}</td>
             <td class="toplam-col">${formatCurrency(rowVal)}</td>
@@ -518,16 +522,18 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     const productName = document.getElementById('inputStokProduct').value.trim().toUpperCase('tr-TR');
     const amount = parseFloat(document.getElementById('inputStokAmount').value) || 0;
     const price  = parseFloat(document.getElementById('inputStokPrice').value) || 0;
+    const unit   = document.getElementById('inputStokUnit').value.trim().toUpperCase('tr-TR');
     
     if (!date || !productName || amount < 0) return;
 
     const productSlug = productName.replace(/\s+/g, '');
     
-    // 1. Ürün bilgilerini (fiyat) güncelle
-    if (price > 0 || !allProducts[productSlug]) {
+    // 1. Ürün bilgilerini (fiyat, birim) güncelle
+    if (price > 0 || unit || !allProducts[productSlug]) {
         await db.collection(PRODUCT_COLLECTION).doc(productSlug).set({
             name: productName,
             price: price || (allProducts[productSlug] ? allProducts[productSlug].price : 0),
+            unit: unit || (allProducts[productSlug] ? (allProducts[productSlug].unit || '') : ''),
             updatedAt: new Date().toISOString()
         }, { merge: true });
     }
@@ -550,8 +556,43 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     document.getElementById('inputStokProduct').value = '';
     document.getElementById('inputStokAmount').value = '';
     document.getElementById('inputStokPrice').value  = '';
+    document.getElementById('inputStokUnit').value   = '';
     document.getElementById('inputStokProduct').focus();
 });
+
+window.editProductName = async (oldName) => {
+    const newName = prompt('Ürün adını düzenleyin:', oldName);
+    if (!newName || newName === oldName) return;
+
+    const oldSlug = oldName.toUpperCase('tr-TR').replace(/\s+/g, '');
+    const newSlug = newName.trim().toUpperCase('tr-TR').replace(/\s+/g, '');
+
+    try {
+        // 1. Ürün master kaydını güncelle/taşı
+        const oldProd = allProducts[oldSlug];
+        if (oldProd) {
+            await db.collection(PRODUCT_COLLECTION).doc(newSlug).set({
+                ...oldProd,
+                name: newName.trim().toUpperCase('tr-TR'),
+                updatedAt: new Date().toISOString()
+            });
+            if (oldSlug !== newSlug) await db.collection(PRODUCT_COLLECTION).doc(oldSlug).delete();
+        }
+
+        // 2. Tüm hareketlerdeki ismi güncelle (Batch ile)
+        const snap = await db.collection(STOK_COLLECTION).where('productName', '==', oldName).get();
+        const batch = db.batch();
+        snap.docs.forEach(doc => {
+            batch.update(doc.ref, { productName: newName.trim().toUpperCase('tr-TR') });
+        });
+        await batch.commit();
+        
+        showToast('Ürün adı başarıyla güncellendi.');
+    } catch (e) {
+        console.error(e);
+        showToast('Güncelleme sırasında hata!', 'error');
+    }
+};
 
 // Arama Filtresi
 document.getElementById('stokSearch').addEventListener('input', (e) => {
