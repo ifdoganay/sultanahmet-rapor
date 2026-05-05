@@ -109,6 +109,11 @@ body {
     grid-template-columns: 340px 1fr;
     gap: 1.5rem;
 }
+.split-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
 .chart-container { position: relative; height: 220px; width: 100%; margin-top: 0.75rem; }
 .upload-area {
     border: 2px dashed var(--border-color);
@@ -194,6 +199,8 @@ tbody tr:hover { background: rgba(255,255,255,0.025); }
     overflow: hidden;
     border: 1px solid var(--border-color);
     background: rgba(15, 23, 42, 0.3);
+    width: 100%;
+    margin-bottom: 0.5rem;
 }
 .accordion-toggle {
     width: 100%;
@@ -280,6 +287,7 @@ tbody tr:hover { background: rgba(255,255,255,0.025); }
 /* ── RESPONSIVE DESIGN (Enhanced Mobile) ── */
 @media (max-width: 1024px) {
     .top-row { grid-template-columns: 1fr; }
+    .split-row { grid-template-columns: 1fr; }
     .chart-container { height: 300px; }
 }
 
