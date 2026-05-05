@@ -554,6 +554,103 @@
         </div><!-- /personelContent -->
     </div><!-- /accordion-panel -->
 
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 4: GRUP REZERVASYONLARI (Açılır Pencere / Accordion) -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle" id="toggleRezervasyon" onclick="toggleAccordion('rezervasyonContent', this)">
+            <span><i class="fa-solid fa-calendar-days"></i> Grup Rezervasyonları</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content" id="rezervasyonContent">
+
+            <!-- REZERVASYON FORMU -->
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-file-contract"></i> Yeni Rezervasyon Kaydı</h2>
+                </div>
+                <form id="rezervForm">
+                    <div class="form-row-4">
+                        <div class="form-group">
+                            <label>Ziyaret Tarihi</label>
+                            <input type="date" id="rezDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Saat Aralığı (Örn: 14:00 - 16:00)</label>
+                            <input type="text" id="rezTime" placeholder="12:00 - 14:00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Kişi Sayısı</label>
+                            <input type="number" id="rezCount" placeholder="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Müşteri/Grup Adı</label>
+                            <input type="text" id="rezCustomer" placeholder="Grup veya Şirket Adı" required>
+                        </div>
+                    </div>
+                    <div class="form-row-4" style="margin-top:0.75rem">
+                        <div class="form-group">
+                            <label>Seçilen Menü</label>
+                            <input type="text" id="rezMenu" placeholder="Menü Detayı">
+                        </div>
+                        <div class="form-group">
+                            <label>Kişi Başı Menü Fiyatı (TL)</label>
+                            <input type="number" step="0.01" id="rezPrice" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Ödeme Şekli</label>
+                            <select id="rezPayment" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 7px; color: white;">
+                                <option value="Nakit">Nakit</option>
+                                <option value="Kredi Kartı">Kredi Kartı</option>
+                                <option value="Cari / Havale">Cari / Havale</option>
+                                <option value="Acenta">Acenta</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fatura Bilgileri (Opsiyonel)</label>
+                            <input type="text" id="rezInvoice" placeholder="V.N. / Adres vb.">
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Rezervasyonu Kaydet</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- REZERVASYON LİSTESİ -->
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-clipboard-list"></i> Rezervasyon Listesi</h2>
+                    <div class="header-actions" style="margin:0; gap:0.5rem;">
+                         <select id="filterRezStatus" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 20px; color: white; font-size: 0.8rem;">
+                             <option value="ALL">Hepsi</option>
+                             <option value="PENDING">Bekleyenler</option>
+                             <option value="COMPLETED">Tamamlananlar</option>
+                         </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="rezTable">
+                        <thead>
+                            <tr>
+                                <th>Durum</th>
+                                <th>Tarih / Saat</th>
+                                <th>Müşteri / Grup</th>
+                                <th>Kişi</th>
+                                <th>Menü / Fiyat</th>
+                                <th>Toplam Tutar</th>
+                                <th>Ödeme / Fatura</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rezTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div><!-- /rezervasyonContent -->
+    </div><!-- /accordion-panel -->
+
 </div><!-- /app-container -->
 
 <!-- LOGIN OVERLAY -->
@@ -598,6 +695,7 @@
                         <th>Mali Analiz</th>
                         <th>Depo-Stok</th>
                         <th>Personel</th>
+                        <th>Rezervasyon</th>
                         <th>İşlem</th>
                     </tr>
                 </thead>
