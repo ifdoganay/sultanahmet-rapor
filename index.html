@@ -651,6 +651,94 @@
         </div><!-- /rezervasyonContent -->
     </div><!-- /accordion-panel -->
 
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 5: ÜRETİM & REÇETE (Açılır Pencere / Accordion) -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle" id="toggleUretim" onclick="toggleAccordion('uretimContent', this)">
+            <span><i class="fa-solid fa-industry"></i> Üretim & Reçete Yönetimi</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content" id="uretimContent">
+
+            <div class="split-row">
+                <!-- REÇETE TANIMLAMA -->
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-scroll"></i> Reçete Tanımla</h2>
+                    </div>
+                    <form id="recipeForm">
+                        <div class="form-group">
+                            <label>Üretilecek Ürün</label>
+                            <input type="text" id="recipeProduct" list="productList" placeholder="Örn: KÖFTE (PORSİYON)" required>
+                        </div>
+                        <div id="recipeIngredients">
+                            <div class="form-section-label">Malzemeler</div>
+                            <div class="ingredient-row" style="display:grid; grid-template-columns: 2fr 1fr 40px; gap:0.5rem; margin-bottom:0.5rem">
+                                <input type="text" class="ing-name" list="productList" placeholder="Malzeme (Et, Yağ vb.)" required>
+                                <input type="number" step="0.001" class="ing-amount" placeholder="Miktar" required>
+                                <button type="button" class="btn-icon" onclick="this.parentElement.remove()"><i class="fa-solid fa-times"></i></button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="addIngredientRow()" style="margin-top:0.5rem"><i class="fa-solid fa-plus"></i> Malzeme Ekle</button>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Reçeteyi Kaydet</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- GÜNLÜK ÜRETİM GİRİŞİ -->
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-hammer"></i> Günlük Üretim Girişi</h2>
+                    </div>
+                    <form id="dailyUretimForm">
+                        <div class="form-group">
+                            <label>Tarih</label>
+                            <input type="date" id="uretimDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Üretilen Ürün</label>
+                            <select id="uretimProductSelect" required style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 7px; color: white;">
+                                <option value="">Reçeteli Ürün Seçin...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Üretim Miktarı (Adet/Porsiyon)</label>
+                            <input type="number" id="uretimAmount" placeholder="0" required>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                            <button type="submit" class="btn btn-success"><i class="fa-solid fa-check"></i> Üretimi Onayla & Stoktan Düş</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <!-- ÜRETİM GEÇMİŞİ VE MALİYET -->
+            <section class="glass-panel" style="margin-top:1.5rem">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-chart-pie"></i> Üretim Geçmişi ve Maliyet Analizi</h2>
+                </div>
+                <div class="table-responsive">
+                    <table id="uretimTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th>Üretilen Ürün</th>
+                                <th>Miktar</th>
+                                <th>Birim Hammadde Maliyeti</th>
+                                <th class="toplam-col">Toplam Hammadde Maliyeti</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uretimTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div><!-- /uretimContent -->
+    </div><!-- /accordion-panel -->
+
 </div><!-- /app-container -->
 
 <!-- LOGIN OVERLAY -->
@@ -696,6 +784,7 @@
                         <th>Depo-Stok</th>
                         <th>Personel</th>
                         <th>Rezervasyon</th>
+                        <th>Üretim</th>
                         <th>İşlem</th>
                     </tr>
                 </thead>
