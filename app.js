@@ -4,12 +4,14 @@ const PRODUCT_COLLECTION = 'sultanahmet_products';
 const USER_COLLECTION = 'sultanahmet_users';
 const PERSONEL_MASTER_COL = 'sultanahmet_personel_master';
 const PERSONEL_RECORD_COL = 'sultanahmet_personel_hareket';
+const RESERV_COLLECTION = 'sultanahmet_rezervasyon';
 let chartInstance = null;
 let allData = [];
 let allStokData = [];
-let allProducts = {}; // { slug: { name, price } }
+let allProducts = {};
 let allPersonelMaster = [];
 let allPersonelRecords = [];
+let allReservations = [];
 let currentUser = null;
 
 // --- UTILS ---
@@ -42,15 +44,22 @@ const updateUIVisibility = () => {
     const canSeeMali = isAdmin || (currentUser && currentUser.perms && currentUser.perms.mali);
     const canSeeStok = isAdmin || (currentUser && currentUser.perms && currentUser.perms.stok);
     const canSeePersonel = isAdmin || (currentUser && currentUser.perms && currentUser.perms.personel);
+    const canSeeRez = isAdmin || (currentUser && currentUser.perms && currentUser.perms.rezervasyon);
 
     document.getElementById('toggleMaliAnaliz').parentElement.classList.toggle('hidden', !canSeeMali);
     document.getElementById('toggleDepoStok').parentElement.classList.toggle('hidden', !canSeeStok);
+    
     const togglePersonel = document.getElementById('togglePersonel');
     if(togglePersonel) togglePersonel.parentElement.classList.toggle('hidden', !canSeePersonel);
+
+    const toggleRez = document.getElementById('toggleRezervasyon');
+    if(toggleRez) toggleRez.parentElement.classList.toggle('hidden', !canSeeRez);
 
     // Forms should be hidden for non-admins
     document.getElementById('dataForm').classList.toggle('hidden', !isAdmin);
     document.getElementById('stokForm').classList.toggle('hidden', !isAdmin);
+    document.getElementById('newPersonelForm').parentElement.parentElement.classList.toggle('hidden', !isAdmin);
+    document.getElementById('rezervForm').parentElement.classList.toggle('hidden', !isAdmin);
     
     // Hide help text for non-admins
     document.querySelectorAll('.badge-hint').forEach(el => el.classList.toggle('hidden', !isAdmin));
@@ -128,6 +137,7 @@ const renderUserManagement = async () => {
             <td><input type="checkbox" id="perm_mali_${doc.id}" ${u.perms.mali ? 'checked' : ''}></td>
             <td><input type="checkbox" id="perm_stok_${doc.id}" ${u.perms.stok ? 'checked' : ''}></td>
             <td><input type="checkbox" id="perm_personel_${doc.id}" ${u.perms.personel ? 'checked' : ''}></td>
+            <td><input type="checkbox" id="perm_rez_${doc.id}" ${u.perms.rezervasyon ? 'checked' : ''}></td>
             <td><button class="btn btn-success" onclick="updateUser('${doc.id}')">Güncelle</button></td>
         `;
         body.appendChild(tr);
@@ -139,9 +149,10 @@ window.updateUser = async (username) => {
     const permMali = document.getElementById(`perm_mali_${username}`).checked;
     const permStok = document.getElementById(`perm_stok_${username}`).checked;
     const permPersonel = document.getElementById(`perm_personel_${username}`).checked;
+    const permRez = document.getElementById(`perm_rez_${username}`).checked;
 
     const updateData = {
-        perms: { mali: permMali, stok: permStok, personel: permPersonel }
+        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez }
     };
     if (newPass) updateData.password = newPass;
 
@@ -1304,3 +1315,104 @@ document.getElementById('filterWorkEnd')?.addEventListener('change', processPers
 document.getElementById('filterPersonelName')?.addEventListener('change', processPersonelData);
 document.getElementById('filterDeptName')?.addEventListener('change', processPersonelData);
 // ──────────────────────────────────────────────────────────────────
+// ── RESERVATION LOGIC ──────────────────────────────────────────
+const renderReservations = () => {
+    const body = document.getElementById('rezTableBody');
+    const filter = document.getElementById('filterRezStatus').value;
+    if(!body) return;
+    body.innerHTML = '';
+
+    const sorted = [...allReservations].sort((a,b) => b.date.localeCompare(a.date));
+
+    sorted.forEach(r => {
+        if (filter === 'PENDING' && r.completed) return;
+        if (filter === 'COMPLETED' && !r.completed) return;
+
+        const total = (r.count || 0) * (r.price || 0);
+        const tr = document.createElement('tr');
+        if (r.completed) tr.style.opacity = '0.6';
+
+        tr.innerHTML = `
+            <td>
+                <input type="checkbox" ${r.completed ? 'checked' : ''} onchange="toggleRezStatus('${r.id}', this.checked)" title="Tamamlandı olarak işaretle">
+            </td>
+            <td>
+                <div style="font-weight:600">${formatDate(r.date)}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted)">${r.time}</div>
+            </td>
+            <td style="text-align:left">
+                <div style="font-weight:700">${r.customer}</div>
+            </td>
+            <td>${r.count} Kişi</td>
+            <td>
+                <div style="font-size:0.8rem">${r.menu || '-'}</div>
+                <div style="color:var(--amber)">${formatCurrency(r.price)} TL / Kişi</div>
+            </td>
+            <td style="font-weight:700; color:var(--success)">${formatCurrency(total)} TL</td>
+            <td style="text-align:left; font-size:0.75rem">
+                <div><b>Ödeme:</b> ${r.payment}</div>
+                <div><b>Fatura:</b> ${r.invoice || '-'}</div>
+            </td>
+            <td>
+                <button class="btn-icon" onclick="deleteReservation('${r.id}')" title="Sil"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = {
+        date: document.getElementById('rezDate').value,
+        time: document.getElementById('rezTime').value,
+        count: parseInt(document.getElementById('rezCount').value) || 0,
+        customer: document.getElementById('rezCustomer').value,
+        menu: document.getElementById('rezMenu').value,
+        price: parseFloat(document.getElementById('rezPrice').value) || 0,
+        payment: document.getElementById('rezPayment').value,
+        invoice: document.getElementById('rezInvoice').value,
+        completed: false,
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await db.collection(RESERV_COLLECTION).add(data);
+        showToast('Rezervasyon başarıyla eklendi.');
+        e.target.reset();
+    } catch (err) {
+        showToast('Hata oluştu!', 'error');
+    }
+});
+
+document.getElementById('filterRezStatus')?.addEventListener('change', renderReservations);
+
+window.toggleRezStatus = async (id, status) => {
+    try {
+        await db.collection(RESERV_COLLECTION).doc(id).update({ completed: status });
+        showToast(status ? 'Ziyaret tamamlandı olarak işaretlendi.' : 'Ziyaret beklemeye alındı.');
+    } catch (e) { showToast('Hata!', 'error'); }
+};
+
+window.deleteReservation = async (id) => {
+    if(!confirm('Bu rezervasyonu silmek istediğinize emin misiniz?')) return;
+    try {
+        await db.collection(RESERV_COLLECTION).doc(id).delete();
+        showToast('Rezervasyon silindi.');
+    } catch (e) { showToast('Hata!', 'error'); }
+};
+
+// --- DATA LISTENERS ---
+const initReservations = () => {
+    db.collection(RESERV_COLLECTION).orderBy('date', 'desc').onSnapshot(snap => {
+        allReservations = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderReservations();
+    });
+};
+
+// Add to initApp
+const originalInitApp = initApp;
+initApp = () => {
+    originalInitApp();
+    initReservations();
+};
