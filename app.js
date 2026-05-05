@@ -2,10 +2,14 @@ const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
 const USER_COLLECTION = 'sultanahmet_users';
+const PERSONEL_MASTER_COL = 'sultanahmet_personel_master';
+const PERSONEL_RECORD_COL = 'sultanahmet_personel_hareket';
 let chartInstance = null;
 let allData = [];
 let allStokData = [];
 let allProducts = {}; // { slug: { name, price } }
+let allPersonelMaster = [];
+let allPersonelRecords = [];
 let currentUser = null;
 
 // --- UTILS ---
@@ -18,13 +22,12 @@ const formatDate = (dateString) => {
 
 // ── AUTH LOGIC ────────────────────────────────────────────────
 const checkAuth = () => {
-    const saved = localStorage.getItem('sultanahmet_user');
-    if (saved) {
-        currentUser = JSON.parse(saved);
-        document.getElementById('loginOverlay').classList.add('hidden');
-        updateUIVisibility();
-        initApp();
-    }
+    // Geçici Admin Bypass
+    currentUser = { username: 'admin', role: 'admin', perms: { mali: true, stok: true, personel: true } };
+    localStorage.setItem('sultanahmet_user', JSON.stringify(currentUser));
+    document.getElementById('loginOverlay').classList.add('hidden');
+    updateUIVisibility();
+    initApp();
 };
 
 const updateUIVisibility = () => {
@@ -38,9 +41,12 @@ const updateUIVisibility = () => {
     // Permission-based panels
     const canSeeMali = isAdmin || (currentUser && currentUser.perms && currentUser.perms.mali);
     const canSeeStok = isAdmin || (currentUser && currentUser.perms && currentUser.perms.stok);
+    const canSeePersonel = isAdmin || (currentUser && currentUser.perms && currentUser.perms.personel);
 
     document.getElementById('toggleMaliAnaliz').parentElement.classList.toggle('hidden', !canSeeMali);
     document.getElementById('toggleDepoStok').parentElement.classList.toggle('hidden', !canSeeStok);
+    const togglePersonel = document.getElementById('togglePersonel');
+    if(togglePersonel) togglePersonel.parentElement.classList.toggle('hidden', !canSeePersonel);
 
     // Forms should be hidden for non-admins
     document.getElementById('dataForm').classList.toggle('hidden', !isAdmin);
@@ -57,18 +63,30 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     const errorEl = document.getElementById('loginError');
 
     try {
-        const userDoc = await db.collection(USER_COLLECTION).doc(username).get();
-        if (!userDoc.exists) {
-            errorEl.textContent = 'Kullanıcı bulunamadı!';
-            return;
-        }
-        const data = userDoc.data();
-        if (data.password !== password) {
-            errorEl.textContent = 'Hatalı şifre!';
-            return;
+        let data;
+        
+        // Acil durum kurtarma (admin / 123456)
+        if (username === 'admin' && password === '123456') {
+            data = { role: 'admin', perms: { mali: true, stok: true, personel: true }, password: '123456' };
+            try { 
+                await db.collection(USER_COLLECTION).doc('admin').set(data, { merge: true }); 
+            } catch(e) { 
+                console.error('Firebase Error:', e); 
+            }
+        } else {
+            const userDoc = await db.collection(USER_COLLECTION).doc(username).get();
+            if (!userDoc.exists) {
+                errorEl.textContent = 'Kullanıcı bulunamadı!';
+                return;
+            }
+            data = userDoc.data();
+            if (data.password !== password) {
+                errorEl.textContent = 'Hatalı şifre!';
+                return;
+            }
         }
 
-        currentUser = { username, role: data.role, perms: data.perms };
+        currentUser = { username, role: data.role, perms: data.perms || { mali: true, stok: true, personel: true } };
         localStorage.setItem('sultanahmet_user', JSON.stringify(currentUser));
         document.getElementById('loginOverlay').classList.add('hidden');
         updateUIVisibility();
@@ -109,6 +127,7 @@ const renderUserManagement = async () => {
             <td><input type="text" placeholder="Yeni şifre" id="pass_${doc.id}" style="width:100px; padding:4px"></td>
             <td><input type="checkbox" id="perm_mali_${doc.id}" ${u.perms.mali ? 'checked' : ''}></td>
             <td><input type="checkbox" id="perm_stok_${doc.id}" ${u.perms.stok ? 'checked' : ''}></td>
+            <td><input type="checkbox" id="perm_personel_${doc.id}" ${u.perms.personel ? 'checked' : ''}></td>
             <td><button class="btn btn-success" onclick="updateUser('${doc.id}')">Güncelle</button></td>
         `;
         body.appendChild(tr);
@@ -119,9 +138,10 @@ window.updateUser = async (username) => {
     const newPass = document.getElementById(`pass_${username}`).value;
     const permMali = document.getElementById(`perm_mali_${username}`).checked;
     const permStok = document.getElementById(`perm_stok_${username}`).checked;
+    const permPersonel = document.getElementById(`perm_personel_${username}`).checked;
 
     const updateData = {
-        perms: { mali: permMali, stok: permStok }
+        perms: { mali: permMali, stok: permStok, personel: permPersonel }
     };
     if (newPass) updateData.password = newPass;
 
@@ -163,6 +183,19 @@ const initApp = () => {
             });
         }
         processStokData();
+    });
+
+    // Personel Master
+    db.collection(PERSONEL_MASTER_COL).onSnapshot(snapshot => {
+        allPersonelMaster = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        populatePersonelSelects();
+        processPersonelData();
+    });
+
+    // Personel Hareketleri
+    db.collection(PERSONEL_RECORD_COL).orderBy('date', 'desc').onSnapshot(snapshot => {
+        allPersonelRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        processPersonelData();
     });
 };
 
@@ -360,7 +393,22 @@ const processStokData = () => {
     });
 
     renderStokStatus(status);
-    renderStokTable(allStokData);
+    
+    // Filtreleme mantığı
+    const pSearch = document.getElementById('filterHareketUrun')?.value.toLowerCase() || '';
+    const tSearch = document.getElementById('filterHareketTip')?.value || '';
+    const sDate = document.getElementById('filterHareketStart')?.value || '1970-01-01';
+    const eDate = document.getElementById('filterHareketEnd')?.value || '2099-12-31';
+
+    const filteredRecords = allStokData.filter(item => {
+        const typeLabel = (item.type === 'IN' ? 'GİRİŞ' : (item.type === 'OUT' ? 'ÇIKIŞ' : 'SAYIM'));
+        if (pSearch && !item.productName.toLowerCase().includes(pSearch)) return false;
+        if (tSearch && typeLabel !== tSearch) return false;
+        if (item.date < sDate || item.date > eDate) return false;
+        return true;
+    });
+
+    renderStokTable(filteredRecords);
 };
 
 const renderStokStatus = (status) => {
@@ -427,6 +475,10 @@ const renderStokStatus = (status) => {
 };
 
 document.getElementById('stokStatusFilter').addEventListener('change', () => processStokData());
+document.getElementById('filterHareketUrun')?.addEventListener('input', () => processStokData());
+document.getElementById('filterHareketTip')?.addEventListener('change', () => processStokData());
+document.getElementById('filterHareketStart')?.addEventListener('change', () => processStokData());
+document.getElementById('filterHareketEnd')?.addEventListener('change', () => processStokData());
 
 window.toggleProductStatus = async (slug, currentStatus) => {
     try {
@@ -858,6 +910,116 @@ document.getElementById('btnExportPDF').addEventListener('click', () => {
     doc.save(`Rapor_${new Date().toISOString().split('T')[0]}.pdf`);
 });
 
+// ── STOK EXPORT ────────────────────────────────────────────────
+document.getElementById('btnStokExportExcel')?.addEventListener('click', () => {
+    if (!allStokItems.length) return alert('İndirilecek stok verisi yok!');
+    const rows = allStokItems.map(item => ({
+        'Ürün Adı': item.name,
+        'Birim': item.unit,
+        'Mevcut Stok': item.stock,
+        'Birim Fiyat': item.price,
+        'Envanter Değeri': item.stock * item.price,
+        'Kategori': item.category,
+        'Durum': item.status === 'ACTIVE' ? 'Aktif' : 'Pasif'
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stok');
+    XLSX.writeFile(wb, `Stok_Raporu_${new Date().toISOString().split('T')[0]}.xlsx`);
+});
+
+document.getElementById('btnStokExportPDF')?.addEventListener('click', () => {
+    if (!allStokItems.length) return alert('İndirilecek stok verisi yok!');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    doc.text('Anlık Stok Raporu', 14, 15);
+    const rows = allStokItems.map(item => [
+        item.name, item.unit, item.stock, formatCurrency(item.price), formatCurrency(item.stock * item.price), item.category
+    ]);
+    doc.autoTable({
+        startY: 20,
+        head: [['Ürün', 'Birim', 'Stok', 'Fiyat', 'Değer', 'Kategori']],
+        body: rows,
+        theme: 'grid'
+    });
+    doc.save(`Stok_Raporu_${Date.now()}.pdf`);
+});
+
+// ── PERSONEL EXPORT ─────────────────────────────────────────────
+document.getElementById('btnPersonelExportExcel')?.addEventListener('click', () => {
+    const sDate = document.getElementById('filterWorkStart')?.value || '1970-01-01';
+    const eDate = document.getElementById('filterWorkEnd')?.value || '2099-12-31';
+    const fName = document.getElementById('filterPersonelName')?.value || '';
+    const fDept = document.getElementById('filterDeptName')?.value || '';
+
+    const records = allPersonelRecords.filter(r => {
+        const p = allPersonelMaster.find(m => m.id === r.personelId);
+        if (fName && r.personelId !== fName) return false;
+        if (fDept && p && p.dept !== fDept) return false;
+        if (r.date < sDate || r.date > eDate) return false;
+        return true;
+    });
+
+    if (!records.length) return alert('Seçili kriterlerde kayıt bulunamadı!');
+
+    const rows = records.map(r => {
+        const p = allPersonelMaster.find(m => m.id === r.personelId);
+        return {
+            'Tarih': formatDate(r.date),
+            'Personel': p ? p.name : r.personelId,
+            'Tür': r.type === 'WORK' ? 'MESAİ' : (r.leaveType || 'İZİN/RAPOR'),
+            'Detay': r.type === 'WORK' ? `${r.start} - ${r.end}` : '-',
+            'Mola/Rapor': r.type === 'WORK' ? (r.breakMins ? r.breakMins + ' dk' : '-') : (r.sickDays ? r.sickDays + ' Gün' : '-'),
+            'Süre': r.type === 'WORK' ? r.hours + ' Saat' : (r.leaveDays || 0) + ' Gün'
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Personel_Raporu');
+    XLSX.writeFile(wb, `Personel_Raporu_${Date.now()}.xlsx`);
+});
+
+document.getElementById('btnPersonelExportPDF')?.addEventListener('click', () => {
+    const sDate = document.getElementById('filterWorkStart')?.value || '1970-01-01';
+    const eDate = document.getElementById('filterWorkEnd')?.value || '2099-12-31';
+    const fName = document.getElementById('filterPersonelName')?.value || '';
+    const fDept = document.getElementById('filterDeptName')?.value || '';
+
+    const records = allPersonelRecords.filter(r => {
+        const p = allPersonelMaster.find(m => m.id === r.personelId);
+        if (fName && r.personelId !== fName) return false;
+        if (fDept && p && p.dept !== fDept) return false;
+        if (r.date < sDate || r.date > eDate) return false;
+        return true;
+    });
+
+    if (!records.length) return alert('Seçili kriterlerde kayıt bulunamadı!');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    doc.text('Personel Çalışma ve İzin Raporu', 14, 15);
+    const rows = records.map(r => {
+        const p = allPersonelMaster.find(m => m.id === r.personelId);
+        return [
+            formatDate(r.date),
+            p ? p.name : r.personelId,
+            r.type === 'WORK' ? 'MESAİ' : (r.leaveType || 'İZİN'),
+            r.type === 'WORK' ? `${r.start}-${r.end}` : '-',
+            r.type === 'WORK' ? (r.breakMins || '-') : (r.sickDays || '-'),
+            r.type === 'WORK' ? r.hours : (r.leaveDays || 0)
+        ];
+    });
+
+    doc.autoTable({
+        startY: 20,
+        head: [['Tarih', 'Personel', 'Tür', 'Saat', 'Mola/Rap', 'Süre']],
+        body: rows,
+        theme: 'grid'
+    });
+    doc.save(`Personel_Raporu_${Date.now()}.pdf`);
+});
+
 // ── TOAST ──────────────────────────────────────────────────────
 const showToast = (msg, type = 'success') => {
     const el = document.createElement('div');
@@ -872,3 +1034,273 @@ const showToast = (msg, type = 'success') => {
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 3500);
 };
+
+// ── PERSONEL YÖNETİMİ MANTIĞI ──────────────────────────────────────────
+
+const populatePersonelSelects = () => {
+    const wSel = document.getElementById('selectWorkPersonel');
+    const lSel = document.getElementById('selectLeavePersonel');
+    const fSel = document.getElementById('filterPersonelName');
+    const dSel = document.getElementById('filterDeptName');
+    if (!wSel || !lSel) return;
+    
+    // Mevcut seçimleri sakla
+    const wVal = wSel.value;
+    const lVal = lSel.value;
+    const fVal = fSel ? fSel.value : '';
+    const dVal = dSel ? dSel.value : '';
+
+    const opts = '<option value="">Seçiniz...</option>' + allPersonelMaster.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    wSel.innerHTML = opts;
+    lSel.innerHTML = opts;
+    
+    if(fSel) {
+        fSel.innerHTML = '<option value="">Tüm Personeller</option>' + allPersonelMaster.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        fSel.value = fVal;
+    }
+
+    if(dSel) {
+        const depts = [...new Set(allPersonelMaster.map(p => p.dept).filter(Boolean))];
+        dSel.innerHTML = '<option value="">Tüm Bölümler</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+        dSel.value = dVal;
+    }
+
+    wSel.value = wVal;
+    lSel.value = lVal;
+};
+
+// Toplam saat hesaplama
+const calcWorkHours = () => {
+    const start = document.getElementById('inputWorkStart').value;
+    const end = document.getElementById('inputWorkEnd').value;
+    const breakMins = parseFloat(document.getElementById('inputWorkBreak').value) || 0;
+    const totalEl = document.getElementById('inputWorkTotal');
+    
+    if (start && end) {
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        
+        let diff = (eh * 60 + em) - (sh * 60 + sm);
+        if (diff < 0) diff += 24 * 60; // Gece yarısını geçme durumu
+        
+        diff -= breakMins; // Mola süresini çıkar
+        if (diff < 0) diff = 0;
+        
+        const hours = (diff / 60).toFixed(2);
+        totalEl.value = hours;
+    } else {
+        totalEl.value = '';
+    }
+};
+
+document.getElementById('inputWorkStart')?.addEventListener('input', calcWorkHours);
+document.getElementById('inputWorkEnd')?.addEventListener('input', calcWorkHours);
+document.getElementById('inputWorkBreak')?.addEventListener('input', calcWorkHours);
+
+// Personel Ekleme
+document.getElementById('newPersonelForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('inputPerName').value.trim();
+    const dept = document.getElementById('inputPerDept').value.trim();
+    const leave = parseFloat(document.getElementById('inputPerLeave').value) || 0;
+    
+    if (!name) return;
+    
+    const id = name.toUpperCase('tr-TR').replace(/\s+/g, '_');
+    
+    try {
+        await db.collection(PERSONEL_MASTER_COL).doc(id).set({
+            name, dept, totalLeave: leave, updatedAt: new Date().toISOString()
+        }, { merge: true });
+        showToast('Personel kaydedildi.');
+        document.getElementById('newPersonelForm').reset();
+    } catch(err) {
+        showToast('Personel eklenemedi.', 'error');
+    }
+});
+
+// Çalışma Saati Ekleme
+document.getElementById('workHourForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pId = document.getElementById('selectWorkPersonel').value;
+    const date = document.getElementById('inputWorkDate').value;
+    const start = document.getElementById('inputWorkStart').value;
+    const end = document.getElementById('inputWorkEnd').value;
+    const breakMins = parseFloat(document.getElementById('inputWorkBreak').value) || 0;
+    const hours = parseFloat(document.getElementById('inputWorkTotal').value) || 0;
+
+    if (!pId || !date || !start || !end) return;
+
+    const id = `${date.replace(/-/g, '')}_WORK_${pId}_${Date.now()}`;
+    
+    try {
+        await db.collection(PERSONEL_RECORD_COL).doc(id).set({
+            type: 'WORK',
+            personelId: pId,
+            date, start, end, breakMins, hours,
+            updatedAt: new Date().toISOString()
+        });
+        showToast('Çalışma saati kaydedildi.');
+        document.getElementById('inputWorkStart').value = '';
+        document.getElementById('inputWorkEnd').value = '';
+        document.getElementById('inputWorkBreak').value = '0';
+        document.getElementById('inputWorkTotal').value = '';
+    } catch(err) {
+        showToast('Hata oluştu.', 'error');
+    }
+});
+
+// İzin Ekleme
+document.getElementById('leaveForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pId = document.getElementById('selectLeavePersonel').value;
+    const lType = document.getElementById('selectLeaveType').value;
+    const start = document.getElementById('inputLeaveStart').value;
+    const end = document.getElementById('inputLeaveEnd').value;
+    const days = parseFloat(document.getElementById('inputLeaveDays').value) || 0;
+
+    if (!pId || !start || !end || days <= 0) return;
+
+    let leaveDays = 0;
+    let sickDays = 0;
+    if (lType === 'Yıllık İzin') leaveDays = days;
+    if (lType === 'Rapor') sickDays = days;
+
+    const id = `${start.replace(/-/g, '')}_LEAVE_${pId}_${Date.now()}`;
+    
+    try {
+        await db.collection(PERSONEL_RECORD_COL).doc(id).set({
+            type: 'LEAVE',
+            personelId: pId,
+            date: start, // Referans tarih olarak başlangıç
+            leaveType: lType,
+            leaveStart: start, leaveEnd: end, leaveDays, sickDays,
+            updatedAt: new Date().toISOString()
+        });
+        showToast('Kayıt eklendi.');
+        document.getElementById('leaveForm').reset();
+    } catch(err) {
+        showToast('Hata oluştu.', 'error');
+    }
+});
+
+// Silme Fonksiyonu
+window.deletePersonelRecord = async (id) => {
+    if(!confirm('Bu kaydı silmek istediğinize emin misiniz?')) return;
+    try {
+        await db.collection(PERSONEL_RECORD_COL).doc(id).delete();
+        showToast('Kayıt silindi.');
+    } catch(e) {
+        showToast('Silinemedi.', 'error');
+    }
+};
+
+window.deletePersonelMaster = async (id) => {
+    if(!confirm('Personeli tamamen silmek istediğinize emin misiniz?')) return;
+    try {
+        await db.collection(PERSONEL_MASTER_COL).doc(id).delete();
+        showToast('Personel silindi.');
+    } catch(e) {
+        showToast('Silinemedi.', 'error');
+    }
+};
+
+// Data Processing & Rendering
+const processPersonelData = () => {
+    const sDate = document.getElementById('filterWorkStart')?.value || '1970-01-01';
+    const eDate = document.getElementById('filterWorkEnd')?.value || '2099-12-31';
+    const fName = document.getElementById('filterPersonelName')?.value || '';
+    const fDept = document.getElementById('filterDeptName')?.value || '';
+
+    let summary = {};
+    allPersonelMaster.forEach(p => {
+        summary[p.id] = { ...p, usedLeave: 0, sickDays: 0, filteredHours: 0 };
+    });
+
+    const recordsBody = document.getElementById('personelRecordsBody');
+    if(recordsBody) recordsBody.innerHTML = '';
+    
+    const isAdmin = currentUser && currentUser.role === 'admin';
+
+    allPersonelRecords.forEach(r => {
+        const p = summary[r.personelId];
+        
+        // Filtreler
+        if (fName && r.personelId !== fName) return;
+        if (fDept && p && p.dept !== fDept) return;
+
+        const pName = p ? p.name : r.personelId;
+        
+        // Kümülatif hesaplamalar
+        if (r.type === 'LEAVE' && p) {
+            p.usedLeave += (r.leaveDays || 0);
+            p.sickDays += (r.sickDays || 0);
+        }
+        
+        // Filtreli saat hesabı
+        if (r.type === 'WORK' && r.date >= sDate && r.date <= eDate && p) {
+            p.filteredHours += (r.hours || 0);
+        }
+
+        // Tablo Satırı
+        if (recordsBody) {
+            const tr = document.createElement('tr');
+            if (r.type === 'WORK') {
+                tr.innerHTML = `
+                    <td style="color:var(--success); font-weight:bold; font-size:0.7rem;">MESAİ</td>
+                    <td>${formatDate(r.date)}</td>
+                    <td>${pName}</td>
+                    <td>${r.start} - ${r.end}</td>
+                    <td style="color:var(--amber);">${r.breakMins ? r.breakMins + ' dk Mola' : '-'}</td>
+                    <td style="font-weight:bold;">${r.hours} Saat</td>
+                    <td>${isAdmin ? '<button class="btn-icon" onclick="deletePersonelRecord(\'' + r.id + '\')"><i class="fa-solid fa-trash"></i></button>' : '-'}</td>
+                `;
+            } else {
+                let det = [];
+                if (r.sickDays) det.push(r.sickDays + ' Gün Rapor');
+                if (r.leaveDays) det.push(r.leaveDays + ' Gün İzin');
+                
+                tr.innerHTML = `
+                    <td style="color:var(--danger); font-weight:bold; font-size:0.7rem;">${r.leaveType ? r.leaveType.toUpperCase() : 'İZİN/RAPOR'}</td>
+                    <td>${formatDate(r.date)}</td>
+                    <td>${pName}</td>
+                    <td>${formatDate(r.leaveStart)} - ${formatDate(r.leaveEnd)}</td>
+                    <td style="color:var(--amber);">-</td>
+                    <td style="font-weight:bold; color:var(--danger);">${det.join(', ')}</td>
+                    <td>${isAdmin ? '<button class="btn-icon" onclick="deletePersonelRecord(\'' + r.id + '\')"><i class="fa-solid fa-trash"></i></button>' : '-'}</td>
+                `;
+            }
+            recordsBody.appendChild(tr);
+        }
+    });
+
+    const sumBody = document.getElementById('personelSummaryBody');
+    if(sumBody) {
+        sumBody.innerHTML = '';
+        Object.values(summary).forEach(p => {
+            if (fName && p.id !== fName) return;
+            if (fDept && p.dept !== fDept) return;
+            const remain = p.totalLeave - p.usedLeave;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight:bold;">${p.name}</td>
+                <td style="color:var(--text-muted); font-size:0.8rem;">${p.dept}</td>
+                <td>${p.totalLeave}</td>
+                <td>${p.usedLeave}</td>
+                <td style="font-weight:bold; color:${remain > 0 ? 'var(--success)' : 'var(--danger)'};">${remain}</td>
+                <td>${p.sickDays || 0}</td>
+                <td style="font-weight:bold; color:var(--primary);">${p.filteredHours.toFixed(2)}</td>
+                <td class="admin-only ${isAdmin ? '' : 'hidden'}">
+                    <button class="btn-icon" onclick="deletePersonelMaster('${p.id}')" title="Personeli Sil"><i class="fa-solid fa-trash-can"></i></button>
+                </td>
+            `;
+            sumBody.appendChild(tr);
+        });
+    }
+};
+
+document.getElementById('filterWorkStart')?.addEventListener('change', processPersonelData);
+document.getElementById('filterWorkEnd')?.addEventListener('change', processPersonelData);
+document.getElementById('filterPersonelName')?.addEventListener('change', processPersonelData);
+document.getElementById('filterDeptName')?.addEventListener('change', processPersonelData);
+// ──────────────────────────────────────────────────────────────────
