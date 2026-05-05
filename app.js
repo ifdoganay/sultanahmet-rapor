@@ -392,28 +392,46 @@ const processStokData = () => {
     // Hareketleri işle (Tarihe göre sıralı işlemek önemli)
     const sortedMoves = [...allStokData].sort((a,b) => a.date.localeCompare(b.date));
     
+    // Fiyat havuzu (Ağırlıklı Ortalama için)
+    const pricePool = {}; // { slug: { totalCost: 0, totalQty: 0 } }
+
     sortedMoves.forEach(m => {
         const slug = m.productName.toUpperCase('tr-TR').replace(/\s+/g, '');
         if (!status[slug]) {
              status[slug] = { 
                  name: m.productName, price: 0, unit: '', 
-                 isActive: true, // BUG FIX: Ensure new products from transactions are active by default
+                 isActive: true,
                  count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00' 
              };
         }
+        if (!pricePool[slug]) pricePool[slug] = { totalCost: 0, totalQty: 0 };
 
         if (m.type === 'COUNT') {
             status[slug].count = m.amount;
-            status[slug].balance = m.amount; // Sayım stok seviyesini resetler
-            status[slug].in = 0; // Sayımdan sonrakileri takip etmek için sıfırla (görsel tercih)
+            status[slug].balance = m.amount;
+            status[slug].in = 0;
             status[slug].out = 0;
             status[slug].lastCountDate = m.date;
+            // Sayım sırasında fiyat girildiyse havuza ekle
+            if (m.price > 0) {
+                pricePool[slug].totalCost += m.amount * m.price;
+                pricePool[slug].totalQty += m.amount;
+            }
         } else if (m.type === 'IN') {
             status[slug].in += m.amount;
             status[slug].balance += m.amount;
+            if (m.price > 0) {
+                pricePool[slug].totalCost += m.amount * m.price;
+                pricePool[slug].totalQty += m.amount;
+            }
         } else if (m.type === 'OUT') {
             status[slug].out += m.amount;
             status[slug].balance -= m.amount;
+        }
+
+        // Ağırlıklı Ortalama Hesapla
+        if (pricePool[slug].totalQty > 0) {
+            status[slug].price = pricePool[slug].totalCost / pricePool[slug].totalQty;
         }
     });
 
@@ -689,6 +707,7 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
         type,
         productName,
         amount,
+        price,
         updatedAt: new Date().toISOString()
     };
     
