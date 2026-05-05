@@ -7,6 +7,7 @@ const PERSONEL_RECORD_COL = 'sultanahmet_personel_hareket';
 const RESERV_COLLECTION = 'sultanahmet_rezervasyon';
 const RECIPE_COLLECTION = 'sultanahmet_receteler';
 const URETIM_COLLECTION = 'sultanahmet_uretim';
+const SALES_COLLECTION = 'sultanahmet_satis';
 
 let chartInstance = null;
 let allData = [];
@@ -17,6 +18,7 @@ let allPersonelRecords = [];
 let allReservations = [];
 let allRecipes = [];
 let allUretim = [];
+let allSales = [];
 let currentUser = null;
 
 // --- UTILS ---
@@ -1401,8 +1403,26 @@ document.getElementById('filterRezStatus')?.addEventListener('change', renderRes
 
 window.toggleRezStatus = async (id, status) => {
     try {
+        const rezDoc = allReservations.find(r => r.id === id);
         await db.collection(RESERV_COLLECTION).doc(id).update({ completed: status });
-        showToast(status ? 'Ziyaret tamamlandı olarak işaretlendi.' : 'Ziyaret beklemeye alındı.');
+        
+        // Eğer tamamlandıysa, Satış olarak kaydet (üretimden düşmek için)
+        if (status && rezDoc) {
+            await db.collection(SALES_COLLECTION).add({
+                date: rezDoc.date,
+                productName: rezDoc.menu || 'RESERV_MENU',
+                amount: rezDoc.count,
+                source: 'RESERV',
+                rezId: id,
+                createdAt: new Date().toISOString()
+            });
+        } else if (!status) {
+            // Eğer onay geri alındıysa, ilgili satış kaydını sil
+            const sale = allSales.find(s => s.rezId === id);
+            if(sale) await db.collection(SALES_COLLECTION).doc(sale.id).delete();
+        }
+
+        showToast(status ? 'Ziyaret tamamlandı ve satış işlendi.' : 'Ziyaret beklemeye alındı.');
     } catch (e) { showToast('Hata!', 'error'); }
 };
 
@@ -1560,5 +1580,98 @@ const initUretim = () => {
     db.collection(URETIM_COLLECTION).orderBy('date', 'desc').onSnapshot(snap => {
         allUretim = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderUretim();
+        renderMamulStok();
     });
+    db.collection(SALES_COLLECTION).orderBy('date', 'desc').onSnapshot(snap => {
+        allSales = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderSales();
+        renderMamulStok();
+    });
+};
+
+// ── SALES & MAMUL STOK LOGIC ──────────────────────────────────
+const renderSales = () => {
+    const body = document.getElementById('salesTableBody');
+    const select = document.getElementById('salesProductSelect');
+    if(!body) return;
+    body.innerHTML = '';
+
+    // Update select options
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">Ürün Seçin...</option>' + 
+        allRecipes.map(r => `<option value="${r.id}">${r.id}</option>`).join('');
+    select.value = currentVal;
+
+    const sorted = [...allSales].sort((a,b) => b.date.localeCompare(a.date));
+    sorted.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDate(s.date)}</td>
+            <td style="font-weight:700">${s.productName}</td>
+            <td>${s.amount} Adet</td>
+            <td><span class="badge">${s.source === 'RESERV' ? 'Rezervasyon' : 'Manuel'}</span></td>
+            <td>
+                <button class="btn-icon" onclick="deleteSale('${s.id}')" title="Satışı Sil"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+const renderMamulStok = () => {
+    const body = document.getElementById('mamulStokBody');
+    if(!body) return;
+    body.innerHTML = '';
+
+    // Üretilen her ürün için bakiye hesapla
+    const balances = {};
+    allRecipes.forEach(r => {
+        balances[r.id] = { produced: 0, sold: 0 };
+    });
+
+    allUretim.forEach(u => {
+        if(balances[u.productName]) balances[u.productName].produced += (u.amount || 0);
+    });
+
+    allSales.forEach(s => {
+        if(balances[s.productName]) balances[s.productName].sold += (s.amount || 0);
+    });
+
+    Object.keys(balances).forEach(pName => {
+        const b = balances[pName];
+        const stock = b.produced - b.sold;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:700">${pName}</td>
+            <td style="color:var(--success)">${b.produced} Adet</td>
+            <td style="color:var(--danger)">${b.sold} Adet</td>
+            <td class="toplam-col" style="font-weight:800; font-size:1rem">${stock} Adet</td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+document.getElementById('dailySalesForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = {
+        date: document.getElementById('salesDate').value,
+        productName: document.getElementById('salesProductSelect').value,
+        amount: parseFloat(document.getElementById('salesAmount').value) || 0,
+        source: 'MANUAL',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await db.collection(SALES_COLLECTION).add(data);
+        showToast('Satış başarıyla kaydedildi.');
+        e.target.reset();
+    } catch (err) { showToast('Hata!', 'error'); }
+});
+
+window.deleteSale = async (id) => {
+    if(!confirm('Bu satış kaydını silmek istiyor musunuz?')) return;
+    try {
+        await db.collection(SALES_COLLECTION).doc(id).delete();
+        showToast('Satış kaydı silindi.');
+    } catch (e) { showToast('Hata!', 'error'); }
 };
