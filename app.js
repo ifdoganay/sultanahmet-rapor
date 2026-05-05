@@ -5,6 +5,9 @@ const USER_COLLECTION = 'sultanahmet_users';
 const PERSONEL_MASTER_COL = 'sultanahmet_personel_master';
 const PERSONEL_RECORD_COL = 'sultanahmet_personel_hareket';
 const RESERV_COLLECTION = 'sultanahmet_rezervasyon';
+const RECIPE_COLLECTION = 'sultanahmet_receteler';
+const URETIM_COLLECTION = 'sultanahmet_uretim';
+
 let chartInstance = null;
 let allData = [];
 let allStokData = [];
@@ -12,6 +15,8 @@ let allProducts = {};
 let allPersonelMaster = [];
 let allPersonelRecords = [];
 let allReservations = [];
+let allRecipes = [];
+let allUretim = [];
 let currentUser = null;
 
 // --- UTILS ---
@@ -45,6 +50,7 @@ const updateUIVisibility = () => {
     const canSeeStok = isAdmin || (currentUser && currentUser.perms && currentUser.perms.stok);
     const canSeePersonel = isAdmin || (currentUser && currentUser.perms && currentUser.perms.personel);
     const canSeeRez = isAdmin || (currentUser && currentUser.perms && currentUser.perms.rezervasyon);
+    const canSeeUretim = isAdmin || (currentUser && currentUser.perms && currentUser.perms.uretim);
 
     document.getElementById('toggleMaliAnaliz').parentElement.classList.toggle('hidden', !canSeeMali);
     document.getElementById('toggleDepoStok').parentElement.classList.toggle('hidden', !canSeeStok);
@@ -55,11 +61,16 @@ const updateUIVisibility = () => {
     const toggleRez = document.getElementById('toggleRezervasyon');
     if(toggleRez) toggleRez.parentElement.classList.toggle('hidden', !canSeeRez);
 
+    const toggleUretim = document.getElementById('toggleUretim');
+    if(toggleUretim) toggleUretim.parentElement.classList.toggle('hidden', !canSeeUretim);
+
     // Forms should be hidden for non-admins
     document.getElementById('dataForm').classList.toggle('hidden', !isAdmin);
     document.getElementById('stokForm').classList.toggle('hidden', !isAdmin);
     document.getElementById('newPersonelForm').parentElement.parentElement.classList.toggle('hidden', !isAdmin);
     document.getElementById('rezervForm').parentElement.classList.toggle('hidden', !isAdmin);
+    document.getElementById('recipeForm').parentElement.classList.toggle('hidden', !isAdmin);
+    document.getElementById('dailyUretimForm').parentElement.classList.toggle('hidden', !isAdmin);
     
     // Hide help text for non-admins
     document.querySelectorAll('.badge-hint').forEach(el => el.classList.toggle('hidden', !isAdmin));
@@ -150,9 +161,10 @@ window.updateUser = async (username) => {
     const permStok = document.getElementById(`perm_stok_${username}`).checked;
     const permPersonel = document.getElementById(`perm_personel_${username}`).checked;
     const permRez = document.getElementById(`perm_rez_${username}`).checked;
+    const permUretim = document.getElementById(`perm_uretim_${username}`).checked;
 
     const updateData = {
-        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez }
+        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim }
     };
     if (newPass) updateData.password = newPass;
 
@@ -1415,4 +1427,138 @@ const originalInitApp = initApp;
 initApp = () => {
     originalInitApp();
     initReservations();
+    initUretim();
+};
+
+// ── PRODUCTION & RECIPE LOGIC ──────────────────────────────────
+window.addIngredientRow = () => {
+    const container = document.getElementById('recipeIngredients');
+    const div = document.createElement('div');
+    div.className = 'ingredient-row';
+    div.style.display = 'grid';
+    div.style.gridTemplateColumns = '2fr 1fr 40px';
+    div.style.gap = '0.5rem';
+    div.style.marginBottom = '0.5rem';
+    div.innerHTML = `
+        <input type="text" class="ing-name" list="productList" placeholder="Malzeme" required>
+        <input type="number" step="0.001" class="ing-amount" placeholder="Miktar" required>
+        <button type="button" class="btn-icon" onclick="this.parentElement.remove()"><i class="fa-solid fa-times"></i></button>
+    `;
+    container.appendChild(div);
+};
+
+const renderUretim = () => {
+    const body = document.getElementById('uretimTableBody');
+    const select = document.getElementById('uretimProductSelect');
+    if(!body) return;
+    body.innerHTML = '';
+    
+    // Update select options for production
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">Reçeteli Ürün Seçin...</option>' + 
+        allRecipes.map(r => `<option value="${r.id}">${r.id}</option>`).join('');
+    select.value = currentVal;
+
+    const sorted = [...allUretim].sort((a,b) => b.date.localeCompare(a.date));
+
+    sorted.forEach(u => {
+        const tr = document.createElement('tr');
+        const unitCost = u.totalCost / u.amount;
+        tr.innerHTML = `
+            <td>${formatDate(u.date)}</td>
+            <td style="font-weight:700">${u.productName}</td>
+            <td>${u.amount} Adet</td>
+            <td>${formatCurrency(unitCost)} TL</td>
+            <td class="toplam-col" style="color:var(--danger)">${formatCurrency(u.totalCost)} TL</td>
+            <td>
+                <button class="btn-icon" onclick="deleteUretim('${u.id}')" title="Üretimi Sil"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+document.getElementById('recipeForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const product = document.getElementById('recipeProduct').value.toUpperCase().trim();
+    const rows = document.querySelectorAll('.ingredient-row');
+    const ingredients = [];
+    
+    rows.forEach(row => {
+        const name = row.querySelector('.ing-name').value.toUpperCase().trim();
+        const amount = parseFloat(row.querySelector('.ing-amount').value) || 0;
+        if(name && amount > 0) ingredients.push({ name, amount });
+    });
+
+    try {
+        await db.collection(RECIPE_COLLECTION).doc(product).set({ ingredients, updatedAt: new Date().toISOString() });
+        showToast('Reçete kaydedildi.');
+    } catch (err) { showToast('Hata!', 'error'); }
+});
+
+document.getElementById('dailyUretimForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const date = document.getElementById('uretimDate').value;
+    const productName = document.getElementById('uretimProductSelect').value;
+    const amount = parseFloat(document.getElementById('uretimAmount').value) || 0;
+
+    const recipe = allRecipes.find(r => r.id === productName);
+    if(!recipe) return showToast('Reçete bulunamadı!', 'error');
+
+    try {
+        let totalCost = 0;
+        const batch = db.batch();
+
+        // Her malzeme için stoktan düş ve maliyet hesapla
+        for(const ing of recipe.ingredients) {
+            const ingSlug = ing.name.replace(/\s+/g, '_').toLowerCase();
+            const requiredAmount = ing.amount * amount;
+            const ingPrice = (allProducts[ingSlug] ? allProducts[ingSlug].price : 0);
+            totalCost += requiredAmount * ingPrice;
+
+            // Stok hareketi ekle
+            const stokRef = db.collection(STOK_COLLECTION).doc();
+            batch.set(stokRef, {
+                date,
+                product: ing.name,
+                type: 'OUT',
+                amount: requiredAmount,
+                notes: `${productName} üretimi için reçeteden düşüldü`,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        // Üretim günlüğü ekle
+        const uretimRef = db.collection(URETIM_COLLECTION).doc();
+        batch.set(uretimRef, {
+            date,
+            productName,
+            amount,
+            totalCost,
+            createdAt: new Date().toISOString()
+        });
+
+        await batch.commit();
+        showToast('Üretim kaydedildi, stoklar güncellendi.');
+        e.target.reset();
+    } catch (err) { showToast('Hata!', 'error'); }
+});
+
+window.deleteUretim = async (id) => {
+    if(!confirm('Bu üretim kaydını silmek istiyor musunuz? (Not: Stok hareketleri geri alınmaz)')) return;
+    try {
+        await db.collection(URETIM_COLLECTION).doc(id).delete();
+        showToast('Üretim kaydı silindi.');
+    } catch (e) { showToast('Hata!', 'error'); }
+};
+
+const initUretim = () => {
+    db.collection(RECIPE_COLLECTION).onSnapshot(snap => {
+        allRecipes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderUretim();
+    });
+    db.collection(URETIM_COLLECTION).orderBy('date', 'desc').onSnapshot(snap => {
+        allUretim = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderUretim();
+    });
 };
