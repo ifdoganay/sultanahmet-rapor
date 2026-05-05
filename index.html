@@ -308,6 +308,8 @@
                              <option value="ALL">Tüm Ürünler</option>
                          </select>
                          <input type="text" id="stokSearch" placeholder="Ürün ara..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem 0.8rem; border-radius: 20px; color: white; font-size: 0.8rem;">
+                         <button class="btn btn-success btn-sm" id="btnStokExportExcel"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                         <button class="btn btn-danger btn-sm" id="btnStokExportPDF"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                     </div>
                 </div>
                 <div class="table-responsive">
@@ -334,6 +336,17 @@
             <section class="glass-panel">
                 <div class="section-header">
                     <h2><i class="fa-solid fa-clock-rotate-left"></i> Son Hareketler</h2>
+                    <div class="header-actions" style="margin: 0; gap: 0.5rem;">
+                         <input type="text" id="filterHareketUrun" placeholder="Ürün ara..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.35rem 0.7rem; border-radius: 7px; color: white; font-size: 0.75rem; width: 130px;">
+                         <select id="filterHareketTip" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.35rem 0.7rem; border-radius: 7px; color: white; font-size: 0.75rem;">
+                             <option value="">Tüm Tipler</option>
+                             <option value="GİRİŞ">GİRİŞ</option>
+                             <option value="ÇIKIŞ">ÇIKIŞ</option>
+                             <option value="SAYIM">SAYIM</option>
+                         </select>
+                         <input type="date" id="filterHareketStart" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.35rem 0.7rem; border-radius: 7px; color: white; font-size: 0.75rem;">
+                         <input type="date" id="filterHareketEnd" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.35rem 0.7rem; border-radius: 7px; color: white; font-size: 0.75rem;">
+                    </div>
                     <span id="stokRecordCount" class="badge">0 Kayıt</span>
                 </div>
                 <div class="table-responsive">
@@ -357,6 +370,188 @@
             </section>
 
         </div><!-- /depoStokContent -->
+    </div><!-- /accordion-panel -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 3: PERSONEL (Açılır Pencere / Accordion) -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle" id="togglePersonel" onclick="toggleAccordion('personelContent', this)">
+            <span><i class="fa-solid fa-users"></i> Personel Yönetimi</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content" id="personelContent">
+
+            <!-- PERSONEL EKLEME VE ÖZET -->
+            <div style="margin-bottom: 1.5rem;">
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-user-plus"></i> Yeni Personel Ekle / Düzenle</h2>
+                    </div>
+                    <form id="newPersonelForm">
+                        <div class="form-row-3">
+                            <div class="form-group">
+                                <label>Ad Soyad</label>
+                                <input type="text" id="inputPerName" required placeholder="Ad Soyad">
+                            </div>
+                            <div class="form-group">
+                                <label>Bölüm</label>
+                                <input type="text" id="inputPerDept" required placeholder="Bölüm">
+                            </div>
+                            <div class="form-group">
+                                <label>Yıllık İzin Hakkı (Gün)</label>
+                                <input type="number" id="inputPerLeave" required placeholder="Örn: 14">
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Kaydet</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <!-- ÇALIŞMA SAATİ VE İZİN GİRİŞİ -->
+            <div class="split-row" style="margin-bottom: 1.5rem;">
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-business-time"></i> Günlük Çalışma Saati Girişi</h2>
+                    </div>
+                    <form id="workHourForm">
+                        <div class="form-row-4">
+                            <div class="form-group">
+                                <label>Personel Seç</label>
+                                <select id="selectWorkPersonel" required style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 7px; color: white;">
+                                    <option value="">Seçiniz...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Tarih</label>
+                                <input type="date" id="inputWorkDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Giriş Saati</label>
+                                <input type="time" id="inputWorkStart" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Çıkış Saati</label>
+                                <input type="time" id="inputWorkEnd" required>
+                            </div>
+                        </div>
+                        <div class="form-row-3" style="margin-top: 0.75rem;">
+                            <div class="form-group">
+                                <label>Mola Süresi (Dakika)</label>
+                                <input type="number" id="inputWorkBreak" placeholder="Örn: 60" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Toplam Saat (Mola Düşülmüş)</label>
+                                <input type="text" id="inputWorkTotal" class="calc-field" readonly placeholder="Otomatik Hesaplanır">
+                            </div>
+                            <div class="form-group form-submit-col" style="display: flex; justify-content: flex-end; align-items: flex-end;">
+                                <button type="submit" class="btn btn-primary" style="width: auto; padding: 0.7rem 2.5rem;"><i class="fa-solid fa-plus"></i> İşlemi Kaydet</button>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-plane-departure"></i> İzin / Rapor Kullanım Girişi</h2>
+                    </div>
+                    <form id="leaveForm">
+                        <div class="form-row-4">
+                            <div class="form-group">
+                                <label>Personel Seç</label>
+                                <select id="selectLeavePersonel" required style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 7px; color: white;">
+                                    <option value="">Seçiniz...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Kayıt Türü</label>
+                                <select id="selectLeaveType" required style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 7px; color: white;">
+                                    <option value="Yıllık İzin">Yıllık İzin</option>
+                                    <option value="Rapor">Raporlu</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Başlangıç</label>
+                                <input type="date" id="inputLeaveStart" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Bitiş</label>
+                                <input type="date" id="inputLeaveEnd" required>
+                            </div>
+                        </div>
+                        <div class="form-row-3" style="margin-top: 0.75rem;">
+                            <div class="form-group">
+                                <label>Kullanılan Gün Sayısı</label>
+                                <input type="number" id="inputLeaveDays" step="0.5" placeholder="Örn: 5" required>
+                            </div>
+                            <div class="form-group"></div>
+                            <div class="form-group form-submit-col" style="display: flex; justify-content: flex-end; align-items: flex-end;">
+                                <button type="submit" class="btn btn-warning" style="width: auto; padding: 0.7rem 2.5rem;"><i class="fa-solid fa-plane"></i> İşlemi Kaydet</button>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <!-- FİLTRELEME VE KAYITLAR -->
+            <section class="glass-panel">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-calendar-check"></i> Raporlar ve Anlık Durum</h2>
+                    <div class="header-actions" style="margin: 0; gap: 0.75rem;">
+                         <label style="color:var(--text-muted); font-size:0.8rem;">Filtrele:</label>
+                         <select id="filterPersonelName" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 7px; color: white; font-size: 0.8rem;">
+                             <option value="">Tüm Personeller</option>
+                         </select>
+                         <select id="filterDeptName" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 7px; color: white; font-size: 0.8rem;">
+                             <option value="">Tüm Bölümler</option>
+                         </select>
+                         <input type="date" id="filterWorkStart" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 7px; color: white; font-size: 0.8rem;">
+                         <input type="date" id="filterWorkEnd" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 7px; color: white; font-size: 0.8rem;">
+                         <button class="btn btn-success btn-sm" id="btnPersonelExportExcel"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                         <button class="btn btn-danger btn-sm" id="btnPersonelExportPDF"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="margin-bottom: 2rem;">
+                    <h3>Personel Durumu (Toplam Saatler Filtrelenen Tarih Aralığını Kapsar)</h3>
+                    <table id="personelSummaryTable">
+                        <thead>
+                            <tr>
+                                <th>Ad Soyad</th>
+                                <th>Bölüm</th>
+                                <th>Toplam İzin Hakkı</th>
+                                <th>Kullanılan İzin</th>
+                                <th class="toplam-col" style="color:var(--success)">Kalan İzin</th>
+                                <th>Raporlu Gün</th>
+                                <th class="toplam-col">Filtrelenen Toplam Saat</th>
+                                <th class="admin-only hidden">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="personelSummaryBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="table-responsive">
+                    <h3>Son Hareketler (Çalışma / İzin)</h3>
+                    <table id="personelRecordsTable">
+                        <thead>
+                            <tr>
+                                <th>Tip</th>
+                                <th>Tarih</th>
+                                <th>Personel</th>
+                                <th>Detay</th>
+                                <th>Mola / Rapor</th>
+                                <th>Hesaplanan Süre</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="personelRecordsBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div><!-- /personelContent -->
     </div><!-- /accordion-panel -->
 
 </div><!-- /app-container -->
@@ -402,6 +597,7 @@
                         <th>Yeni Şifre</th>
                         <th>Mali Analiz</th>
                         <th>Depo-Stok</th>
+                        <th>Personel</th>
                         <th>İşlem</th>
                     </tr>
                 </thead>
@@ -426,6 +622,6 @@
         document.getElementById(id).classList.toggle('hidden', !show);
     }
 </script>
-<script src="app.js"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
