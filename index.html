@@ -739,6 +739,89 @@
         </div><!-- /uretimContent -->
     </div><!-- /accordion-panel -->
 
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 6: SATIŞ VE MAMUL STOK (Açılır Pencere / Accordion) -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle" id="toggleSatis" onclick="toggleAccordion('satisContent', this)">
+            <span><i class="fa-solid fa-cart-shopping"></i> Satış & Mamul Stok</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content" id="satisContent">
+
+            <div class="split-row">
+                <!-- GÜNLÜK SATIŞ GİRİŞİ -->
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-cash-register"></i> Günlük Satış Girişi</h2>
+                    </div>
+                    <form id="dailySalesForm">
+                        <div class="form-group">
+                            <label>Tarih</label>
+                            <input type="date" id="salesDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Satılan Ürün</label>
+                            <select id="salesProductSelect" required style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 7px; color: white;">
+                                <option value="">Ürün Seçin...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Satış Miktarı</label>
+                            <input type="number" id="salesAmount" placeholder="0" required>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cart-arrow-down"></i> Satışı Kaydet</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- MAMUL STOK DURUMU -->
+                <section class="glass-panel">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-boxes-packing"></i> Mamul Stok (Üretilen Ürünler)</h2>
+                        <span class="badge">Üretim - Satış Dengesi</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="mamulStokTable">
+                            <thead>
+                                <tr>
+                                    <th>Ürün</th>
+                                    <th>Toplam Üretim</th>
+                                    <th>Toplam Satış</th>
+                                    <th class="toplam-col">Mevcut Stok (Devir)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mamulStokBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- SATIŞ GEÇMİŞİ -->
+            <section class="glass-panel" style="margin-top:1.5rem">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-history"></i> Satış Kayıtları</h2>
+                </div>
+                <div class="table-responsive">
+                    <table id="salesTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th>Ürün</th>
+                                <th>Miktar</th>
+                                <th>Kaynak</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div><!-- /satisContent -->
+    </div><!-- /accordion-panel -->
+
 </div><!-- /app-container -->
 
 <!-- LOGIN OVERLAY -->
@@ -785,6 +868,7 @@
                         <th>Personel</th>
                         <th>Rezervasyon</th>
                         <th>Üretim</th>
+                        <th>Satış</th>
                         <th>İşlem</th>
                     </tr>
                 </thead>
