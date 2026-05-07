@@ -87,9 +87,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     try {
         let data;
         
-        // Acil durum kurtarma (admin / 123456)
-        if (username === 'admin' && password === '123456') {
-            data = { role: 'admin', perms: { mali: true, stok: true, personel: true }, password: '123456' };
+        // Acil durum kurtarma (admin / 227029)
+        if (username === 'admin' && password === '227029') {
+            data = { role: 'admin', perms: { mali: true, stok: true, personel: true }, password: '227029' };
             try { 
                 await db.collection(USER_COLLECTION).doc('admin').set(data, { merge: true }); 
             } catch(e) { 
