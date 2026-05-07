@@ -115,7 +115,7 @@ body {
     gap: 1.5rem;
 }
 .chart-container { position: relative; height: 220px; width: 100%; margin-top: 0.75rem; }
-.upload-area {
+.upload-area, .drop-zone {
     border: 2px dashed var(--border-color);
     border-radius: 10px;
     padding: 1.5rem 1rem;
@@ -125,8 +125,8 @@ body {
     transition: all 0.3s;
     cursor: pointer;
 }
-.upload-area:hover, .upload-area.dragover { border-color: var(--primary); background: rgba(59,130,246,0.08); }
-.upload-area i { font-size: 2rem; color: var(--primary); }
+.upload-area:hover, .upload-area.dragover, .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: rgba(59,130,246,0.08); }
+.upload-area i, .drop-zone i { font-size: 2rem; color: var(--primary); }
 .text-sm { font-size: 0.8rem; color: var(--text-muted); }
 .upload-status { margin-top: 0.75rem; font-size: 0.85rem; color: var(--success); text-align: center; min-height: 1.2rem; }
 
