@@ -776,6 +776,18 @@
                             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cart-arrow-down"></i> Satışı Kaydet</button>
                         </div>
                     </form>
+
+                    <!-- SATIŞ DOSYA YÜKLEME -->
+                    <div id="salesDropZone" class="drop-zone" style="margin-top: 1.5rem; border-style: dashed; border-color: var(--primary); padding: 2rem 1rem;">
+                        <i class="fa-solid fa-file-excel" style="font-size: 2rem; color: var(--success); margin-bottom: 1rem;"></i>
+                        <p style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem;">Satış Tablosunu Yükleyin</p>
+                        <p style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 1rem;">Excel dosyalarını buraya bırakabilir veya butona basabilirsiniz</p>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('salesFileInput').click()">
+                            <i class="fa-solid fa-plus"></i> Dosya Seçin
+                        </button>
+                        <input type="file" id="salesFileInput" hidden accept=".xlsx, .xls" multiple>
+                        <div id="salesUploadStatus" style="font-size: 0.8rem; margin-top: 1rem; color: var(--amber); font-weight: 600;"></div>
+                    </div>
                 </section>
 
                 <!-- MAMUL STOK DURUMU -->
