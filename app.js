@@ -1704,7 +1704,6 @@ const salesDropZone = document.getElementById('salesDropZone');
 const salesFileInput = document.getElementById('salesFileInput');
 const salesUploadStatus = document.getElementById('salesUploadStatus');
 
-salesDropZone?.addEventListener('click', () => salesFileInput.click());
 salesDropZone?.addEventListener('dragover', (e) => { e.preventDefault(); salesDropZone.classList.add('dragover'); });
 salesDropZone?.addEventListener('dragleave', () => salesDropZone.classList.remove('dragover'));
 salesDropZone?.addEventListener('drop', async (e) => {
