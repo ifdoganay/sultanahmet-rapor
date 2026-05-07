@@ -228,6 +228,10 @@ const initApp = () => {
         allPersonelRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         processPersonelData();
     });
+
+    // Rezervasyon ve Üretim Modülleri
+    initReservations();
+    initUretim();
 };
 
 checkAuth();
@@ -1467,13 +1471,7 @@ const initReservations = () => {
     });
 };
 
-// Add to initApp
-const originalInitApp = initApp;
-initApp = () => {
-    originalInitApp();
-    initReservations();
-    initUretim();
-};
+
 
 // ── PRODUCTION & RECIPE LOGIC ──────────────────────────────────
 window.addIngredientRow = () => {
@@ -1775,6 +1773,9 @@ const handleSalesFiles = async (files) => {
     if (added > 0) {
         salesUploadStatus.style.color = 'var(--success)';
         salesUploadStatus.textContent = `✅ ${added} satış kaydı başarıyla aktarıldı!`;
+        showToast(`${added} adet satış verisi başarıyla yüklendi.`);
+    } else {
+        showToast('Yüklenecek uygun satış verisi bulunamadı.', 'error');
     }
     setTimeout(() => { salesUploadStatus.textContent = ''; salesUploadStatus.style.color = ''; }, 8000);
     salesFileInput.value = '';
@@ -1802,23 +1803,25 @@ const parseSalesExcel = async (file) => {
 
                 const results = [];
                 rows.forEach(row => {
-                    // Satırda en az 2 kolon olmalı
-                    if (row.length < 2) return;
+                    // Satır boşsa veya çok kısaysa atla
+                    if (!row || row.length < 2) return;
 
                     // Sağdan sola doğru tarayarak ilk geçerli sayıyı (adet) bulalım
                     let numIdx = -1;
                     let amount = 0;
+                    
+                    // Genelde son kolonlarda sayı olur, sondan başa tarıyoruz
                     for (let i = row.length - 1; i >= 1; i--) {
                         let val = row[i];
+                        if (val === null || val === undefined || val === "") continue;
                         
-                        // String ise sayıya çevirmeyi dene (1.050,00 -> 1050)
+                        // Değer string ise sayıya çevirmeyi dene (Örn: "1.050,00 TL" -> 1050)
                         if (typeof val === 'string') {
-                            val = val.trim();
-                            // Eğer sadece rakam, nokta ve virgül içeriyorsa
-                            if (/^[\d.,]+$/.test(val)) {
-                                val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
-                            } else {
-                                val = NaN;
+                            let cleanStr = val.replace(/[^0-9,.]/g, '').trim();
+                            if (cleanStr) {
+                                // Binlik ayırıcıyı kaldır, virgülü noktaya çevir
+                                let parsed = parseFloat(cleanStr.replace(/\./g, '').replace(',', '.'));
+                                if (!isNaN(parsed)) val = parsed;
                             }
                         }
 
@@ -1831,24 +1834,30 @@ const parseSalesExcel = async (file) => {
 
                     // Eğer sayı bulduysak, hemen solundaki hücre ürün adıdır
                     if (numIdx > 0) {
-                        const cellVal = row[numIdx - 1] ? row[numIdx - 1].toString().trim() : "";
-                        if (cellVal) {
-                            const upperVal = cellVal.toUpperCase('tr-TR');
-                            // "TOTAL", "GENEL", "ARA", "TOPLAM" gibi özet satırlarını ele
-                            if (!upperVal.includes('TOTAL') && !upperVal.includes('TOPLAM') && !upperVal.includes('GENEL') && !upperVal.includes('TOPLAMI')) {
-                                results.push({
-                                    date: fileDate,
-                                    productName: upperVal,
-                                    amount: amount
-                                });
+                        let cellVal = row[numIdx - 1];
+                        if (cellVal !== null && cellVal !== undefined) {
+                            const productName = cellVal.toString().trim();
+                            if (productName) {
+                                const upperVal = productName.toUpperCase('tr-TR');
+                                // Özet satırlarını ele (TOTAL, TOPLAM vb.)
+                                if (!upperVal.includes('TOTAL') && !upperVal.includes('TOPLAM') && !upperVal.includes('GENEL') && !upperVal.includes('TOPLAMI')) {
+                                    results.push({
+                                        date: fileDate,
+                                        productName: upperVal,
+                                        amount: amount
+                                    });
+                                }
                             }
                         }
                     }
                 });
 
-                console.log('Parsed Results:', results);
+                console.log(`Excel'den ${results.length} geçerli satır okundu.`);
                 resolve(results);
-            } catch (err) { reject(err); }
+            } catch (err) { 
+                console.error('Excel Ayrıştırma Hatası:', err);
+                reject(err); 
+            }
         };
         reader.readAsArrayBuffer(file);
     });
