@@ -32,12 +32,15 @@ const formatDate = (dateString) => {
 
 // ── AUTH LOGIC ────────────────────────────────────────────────
 const checkAuth = () => {
-    // Geçici Admin Bypass
-    currentUser = { username: 'admin', role: 'admin', perms: { mali: true, stok: true, personel: true } };
-    localStorage.setItem('sultanahmet_user', JSON.stringify(currentUser));
-    document.getElementById('loginOverlay').classList.add('hidden');
-    updateUIVisibility();
-    initApp();
+    const saved = localStorage.getItem('sultanahmet_user');
+    if (saved) {
+        currentUser = JSON.parse(saved);
+        document.getElementById('loginOverlay').classList.add('hidden');
+        updateUIVisibility();
+        initApp();
+    } else {
+        document.getElementById('loginOverlay').classList.remove('hidden');
+    }
 };
 
 const updateUIVisibility = () => {
@@ -1715,58 +1718,6 @@ salesDropZone?.addEventListener('drop', async (e) => {
     if (e.dataTransfer.files.length) await handleSalesFiles(e.dataTransfer.files);
 });
 
-// Missing Parser Function
-const parseSalesExcel = (file) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                const salesData = [];
-                const salesDate = document.getElementById('salesDate').value || new Date().toISOString().split('T')[0];
-
-                // Right-to-Left Scanning Logic (Optimized for Sultanahmet Pivot Tables)
-                jsonData.forEach((row) => {
-                    if (!row || row.length < 2) return;
-                    
-                    // Scan from right to find the first numeric value
-                    for (let i = row.length - 1; i > 0; i--) {
-                        let val = row[i];
-                        if (val === undefined || val === null || val === '') continue;
-
-                        // Clean numeric string (e.g., "1.050,00" -> 1050)
-                        let cleanVal = String(val).replace(/\./g, '').replace(',', '.');
-                        let num = parseFloat(cleanVal);
-
-                        if (!isNaN(num) && num > 0) {
-                            // The product name is usually in the cell immediately to the left
-                            let productName = String(row[i - 1] || '').trim();
-                            if (productName && productName.length > 2 && !productName.includes('Toplam')) {
-                                salesData.push({
-                                    date: salesDate,
-                                    productName: productName,
-                                    amount: num,
-                                    type: 'excel_import'
-                                });
-                                break; // Found the value for this row
-                            }
-                        }
-                    }
-                });
-                resolve(salesData);
-            } catch (err) {
-                reject(err);
-            }
-        };
-        reader.onerror = (err) => reject(err);
-        reader.readAsArrayBuffer(file);
-    });
-};
 
 salesFileInput?.addEventListener('change', async (e) => {
     if (e.target.files.length) await handleSalesFiles(e.target.files);
