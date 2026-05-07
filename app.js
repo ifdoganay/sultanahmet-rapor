@@ -1715,6 +1715,13 @@ salesFileInput?.addEventListener('change', async (e) => {
     if (e.target.files.length) await handleSalesFiles(e.target.files);
 });
 
+// Global handler for HTML attribute
+window.onSalesFileChange = async (input) => {
+    if (input.files && input.files.length) {
+        await handleSalesFiles(input.files);
+    }
+};
+
 const handleSalesFiles = async (files) => {
     salesUploadStatus.style.color = 'var(--amber)';
     salesUploadStatus.textContent = 'İşleniyor...';
