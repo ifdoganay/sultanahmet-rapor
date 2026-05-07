@@ -1,3 +1,4 @@
+console.log('App Version: 6.0 (Admin Password Updated)');
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
@@ -80,9 +81,11 @@ const updateUIVisibility = () => {
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = document.getElementById('loginUser').value.toLowerCase();
-    const password = document.getElementById('loginPass').value;
+    console.log('Login attempt detected...');
+    const username = document.getElementById('loginUser').value.trim().toLowerCase();
+    const password = document.getElementById('loginPass').value.trim();
     const errorEl = document.getElementById('loginError');
+    errorEl.textContent = 'Bağlanılıyor...';
 
     try {
         let data;
