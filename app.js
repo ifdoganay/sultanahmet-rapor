@@ -1716,34 +1716,52 @@ salesFileInput?.addEventListener('change', async (e) => {
 });
 
 const handleSalesFiles = async (files) => {
+    salesUploadStatus.style.color = 'var(--amber)';
     salesUploadStatus.textContent = 'İşleniyor...';
+    
+    // Step 1: XLSX library check
+    if (typeof XLSX === 'undefined') {
+        salesUploadStatus.style.color = 'var(--danger)';
+        salesUploadStatus.textContent = '❌ HATA: Excel kütüphanesi (XLSX) yüklenemedi! Sayfayı yenileyin.';
+        return;
+    }
+    
     let added = 0;
     for (const file of files) {
+        salesUploadStatus.textContent = `"${file.name}" okunuyor...`;
         try {
             const data = await parseSalesExcel(file);
+            salesUploadStatus.textContent = `${data.length} kayıt bulundu, kaydediliyor...`;
+            
             if (data && data.length > 0) {
-                const batch = db.batch();
-                data.forEach(item => {
-                    const ref = db.collection(SALES_COLLECTION).doc();
-                    batch.set(ref, {
-                        ...item,
-                        source: 'EXCEL',
-                        createdAt: new Date().toISOString()
+                // Batch max 500 doc
+                const chunkSize = 400;
+                for (let i = 0; i < data.length; i += chunkSize) {
+                    const chunk = data.slice(i, i + chunkSize);
+                    const batch = db.batch();
+                    chunk.forEach(item => {
+                        const ref = db.collection(SALES_COLLECTION).doc();
+                        batch.set(ref, { ...item, source: 'EXCEL', createdAt: new Date().toISOString() });
                     });
-                });
-                await batch.commit();
+                    await batch.commit();
+                }
                 added += data.length;
             } else {
-                alert('Uyarı: Excel dosyasında geçerli satış verisi bulunamadı. Lütfen dosya formatını kontrol edin.');
+                salesUploadStatus.style.color = 'var(--danger)';
+                salesUploadStatus.textContent = `⚠️ "${file.name}" dosyasında geçerli satış verisi bulunamadı.`;
             }
         } catch (err) { 
             console.error(err); 
-            alert('Hata: Dosya okunurken bir hata oluştu.');
+            salesUploadStatus.style.color = 'var(--danger)';
+            salesUploadStatus.textContent = `❌ Hata: ${err.message}`;
         }
     }
-    salesUploadStatus.textContent = added > 0 ? `${added} satış eklendi ✓` : 'İşlem tamamlandı.';
-    if(added > 0) alert(`Başarılı: ${added} adet satış kaydı sisteme aktarıldı!`);
-    setTimeout(() => salesUploadStatus.textContent = '', 5000);
+    
+    if (added > 0) {
+        salesUploadStatus.style.color = 'var(--success)';
+        salesUploadStatus.textContent = `✅ ${added} satış kaydı başarıyla aktarıldı!`;
+    }
+    setTimeout(() => { salesUploadStatus.textContent = ''; salesUploadStatus.style.color = ''; }, 8000);
     salesFileInput.value = '';
 };
 
