@@ -1623,12 +1623,16 @@ const renderSales = () => {
 
     const sorted = [...allSales].sort((a,b) => b.date.localeCompare(a.date));
     sorted.forEach(s => {
+        let sourceText = 'Manuel';
+        if (s.source === 'RESERV') sourceText = 'Rezervasyon';
+        if (s.source === 'EXCEL') sourceText = 'Excel Aktarımı';
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${formatDate(s.date)}</td>
             <td style="font-weight:700">${s.productName}</td>
             <td>${s.amount} Adet</td>
-            <td><span class="badge">${s.source === 'RESERV' ? 'Rezervasyon' : 'Manuel'}</span></td>
+            <td><span class="badge">${sourceText}</span></td>
             <td>
                 <button class="btn-icon" onclick="deleteSale('${s.id}')" title="Satışı Sil"><i class="fa-solid fa-trash"></i></button>
             </td>
@@ -1693,4 +1697,127 @@ window.deleteSale = async (id) => {
         await db.collection(SALES_COLLECTION).doc(id).delete();
         showToast('Satış kaydı silindi.');
     } catch (e) { showToast('Hata!', 'error'); }
+};
+
+// ── SALES FILE UPLOAD ──────────────────────────────────────────
+const salesDropZone = document.getElementById('salesDropZone');
+const salesFileInput = document.getElementById('salesFileInput');
+const salesUploadStatus = document.getElementById('salesUploadStatus');
+
+salesDropZone?.addEventListener('click', () => salesFileInput.click());
+salesDropZone?.addEventListener('dragover', (e) => { e.preventDefault(); salesDropZone.classList.add('dragover'); });
+salesDropZone?.addEventListener('dragleave', () => salesDropZone.classList.remove('dragover'));
+salesDropZone?.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    salesDropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) await handleSalesFiles(e.dataTransfer.files);
+});
+salesFileInput?.addEventListener('change', async (e) => {
+    if (e.target.files.length) await handleSalesFiles(e.target.files);
+});
+
+const handleSalesFiles = async (files) => {
+    salesUploadStatus.textContent = 'İşleniyor...';
+    let added = 0;
+    for (const file of files) {
+        try {
+            const data = await parseSalesExcel(file);
+            if (data && data.length > 0) {
+                const batch = db.batch();
+                data.forEach(item => {
+                    const ref = db.collection(SALES_COLLECTION).doc();
+                    batch.set(ref, {
+                        ...item,
+                        source: 'EXCEL',
+                        createdAt: new Date().toISOString()
+                    });
+                });
+                await batch.commit();
+                added += data.length;
+            } else {
+                alert('Uyarı: Excel dosyasında geçerli satış verisi bulunamadı. Lütfen dosya formatını kontrol edin.');
+            }
+        } catch (err) { 
+            console.error(err); 
+            alert('Hata: Dosya okunurken bir hata oluştu.');
+        }
+    }
+    salesUploadStatus.textContent = added > 0 ? `${added} satış eklendi ✓` : 'İşlem tamamlandı.';
+    if(added > 0) alert(`Başarılı: ${added} adet satış kaydı sisteme aktarıldı!`);
+    setTimeout(() => salesUploadStatus.textContent = '', 5000);
+    salesFileInput.value = '';
+};
+
+const parseSalesExcel = async (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                // Raw data as array of arrays to handle various header positions
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+                console.log('Raw Excel Rows:', rows);
+
+                // Dosya adından tarih çekme
+                let fileDate = new Date().toISOString().split('T')[0];
+                const dateMatch = file.name.match(/(\d{1,2})[.\-](\d{1,2})[.\-](\d{4})/);
+                if (dateMatch) {
+                    fileDate = `${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`;
+                }
+
+                const results = [];
+                rows.forEach(row => {
+                    // Satırda en az 2 kolon olmalı
+                    if (row.length < 2) return;
+
+                    // Sağdan sola doğru tarayarak ilk geçerli sayıyı (adet) bulalım
+                    let numIdx = -1;
+                    let amount = 0;
+                    for (let i = row.length - 1; i >= 1; i--) {
+                        let val = row[i];
+                        
+                        // String ise sayıya çevirmeyi dene (1.050,00 -> 1050)
+                        if (typeof val === 'string') {
+                            val = val.trim();
+                            // Eğer sadece rakam, nokta ve virgül içeriyorsa
+                            if (/^[\d.,]+$/.test(val)) {
+                                val = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+                            } else {
+                                val = NaN;
+                            }
+                        }
+
+                        if (typeof val === 'number' && !isNaN(val) && val > 0) {
+                            numIdx = i;
+                            amount = val;
+                            break;
+                        }
+                    }
+
+                    // Eğer sayı bulduysak, hemen solundaki hücre ürün adıdır
+                    if (numIdx > 0) {
+                        const cellVal = row[numIdx - 1] ? row[numIdx - 1].toString().trim() : "";
+                        if (cellVal) {
+                            const upperVal = cellVal.toUpperCase('tr-TR');
+                            // "TOTAL", "GENEL", "ARA", "TOPLAM" gibi özet satırlarını ele
+                            if (!upperVal.includes('TOTAL') && !upperVal.includes('TOPLAM') && !upperVal.includes('GENEL') && !upperVal.includes('TOPLAMI')) {
+                                results.push({
+                                    date: fileDate,
+                                    productName: upperVal,
+                                    amount: amount
+                                });
+                            }
+                        }
+                    }
+                });
+
+                console.log('Parsed Results:', results);
+                resolve(results);
+            } catch (err) { reject(err); }
+        };
+        reader.readAsArrayBuffer(file);
+    });
 };
