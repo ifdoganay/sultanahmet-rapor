@@ -1365,7 +1365,11 @@ const renderReservations = () => {
     if(!body) return;
     body.innerHTML = '';
 
-    const sorted = [...allReservations].sort((a,b) => b.date.localeCompare(a.date));
+    const sorted = [...allReservations].sort((a,b) => {
+        const dateA = a.date || "";
+        const dateB = b.date || "";
+        return dateB.localeCompare(dateA);
+    });
 
     sorted.forEach(r => {
         if (filter === 'PENDING' && r.completed) return;
@@ -1406,9 +1410,6 @@ const renderReservations = () => {
 
 document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    console.log('Rezervasyon kaydı başlatıldı...');
-    showToast('Kayıt ediliyor...');
-    
     try {
         const data = {
             date: document.getElementById('rezDate').value,
@@ -1424,12 +1425,11 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
         };
 
         await db.collection(RESERV_COLLECTION).add(data);
-        showToast('Rezervasyon başarıyla eklendi.');
+        alert('Rezervasyon BAŞARIYLA eklendi!');
         e.target.reset();
-        console.log('Rezervasyon başarıyla kaydedildi.');
     } catch (err) {
-        console.error('Rezervasyon Kayıt Hatası:', err);
-        showToast('Hata oluştu: ' + err.message, 'error');
+        alert('HATA OLUŞTU: ' + err.message);
+        console.error('Rezervasyon Hatası:', err);
     }
 });
 
