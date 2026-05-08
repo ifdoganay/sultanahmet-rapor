@@ -1406,25 +1406,30 @@ const renderReservations = () => {
 
 document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const data = {
-        date: document.getElementById('rezDate').value,
-        time: document.getElementById('rezTime').value,
-        count: parseInt(document.getElementById('rezCount').value) || 0,
-        customer: document.getElementById('rezCustomer').value,
-        menu: document.getElementById('rezMenu').value,
-        price: parseFloat(document.getElementById('rezPrice').value) || 0,
-        payment: document.getElementById('rezPayment').value,
-        invoice: document.getElementById('rezInvoice').value,
-        completed: false,
-        createdAt: new Date().toISOString()
-    };
-
+    console.log('Rezervasyon kaydı başlatıldı...');
+    showToast('Kayıt ediliyor...');
+    
     try {
+        const data = {
+            date: document.getElementById('rezDate').value,
+            time: document.getElementById('rezTime').value,
+            count: parseInt(document.getElementById('rezCount').value) || 0,
+            customer: document.getElementById('rezCustomer').value,
+            menu: document.getElementById('rezMenu').value,
+            price: parseFloat(document.getElementById('rezPrice').value) || 0,
+            payment: document.getElementById('rezPayment').value,
+            invoice: document.getElementById('rezInvoice').value,
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+
         await db.collection(RESERV_COLLECTION).add(data);
         showToast('Rezervasyon başarıyla eklendi.');
         e.target.reset();
+        console.log('Rezervasyon başarıyla kaydedildi.');
     } catch (err) {
-        showToast('Hata oluştu!', 'error');
+        console.error('Rezervasyon Kayıt Hatası:', err);
+        showToast('Hata oluştu: ' + err.message, 'error');
     }
 });
 
