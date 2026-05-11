@@ -46,42 +46,46 @@ const checkAuth = () => {
 };
 
 const updateUIVisibility = () => {
-    const isAdmin = currentUser && currentUser.role === 'admin';
-    
-    // Admin-only elements
-    document.querySelectorAll('.admin-only').forEach(el => {
-        el.classList.toggle('hidden', !isAdmin);
-    });
+    try {
+        const isAdmin = currentUser && currentUser.role === 'admin';
+        
+        // Admin-only elements
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.classList.toggle('hidden', !isAdmin);
+        });
 
-    // Permission-based panels
-    const canSeeMali = isAdmin || (currentUser && currentUser.perms && currentUser.perms.mali);
-    const canSeeStok = isAdmin || (currentUser && currentUser.perms && currentUser.perms.stok);
-    const canSeePersonel = isAdmin || (currentUser && currentUser.perms && currentUser.perms.personel);
-    const canSeeRez = isAdmin || (currentUser && currentUser.perms && currentUser.perms.rezervasyon);
-    const canSeeUretim = isAdmin || (currentUser && currentUser.perms && currentUser.perms.uretim);
+        // Permission-based panels
+        const canSeeMali = isAdmin || (currentUser && currentUser.perms && currentUser.perms.mali);
+        const canSeeStok = isAdmin || (currentUser && currentUser.perms && currentUser.perms.stok);
+        const canSeePersonel = isAdmin || (currentUser && currentUser.perms && currentUser.perms.personel);
+        const canSeeRez = isAdmin || (currentUser && currentUser.perms && currentUser.perms.rezervasyon);
+        const canSeeUretim = isAdmin || (currentUser && currentUser.perms && currentUser.perms.uretim);
 
-    document.getElementById('toggleMaliAnaliz').parentElement.classList.toggle('hidden', !canSeeMali);
-    document.getElementById('toggleDepoStok').parentElement.classList.toggle('hidden', !canSeeStok);
-    
-    const togglePersonel = document.getElementById('togglePersonel');
-    if(togglePersonel) togglePersonel.parentElement.classList.toggle('hidden', !canSeePersonel);
+        document.getElementById('toggleMaliAnaliz')?.parentElement?.classList.toggle('hidden', !canSeeMali);
+        document.getElementById('toggleDepoStok')?.parentElement?.classList.toggle('hidden', !canSeeStok);
+        
+        const togglePersonel = document.getElementById('togglePersonel');
+        if(togglePersonel) togglePersonel.parentElement.classList.toggle('hidden', !canSeePersonel);
 
-    const toggleRez = document.getElementById('toggleRezervasyon');
-    if(toggleRez) toggleRez.parentElement.classList.toggle('hidden', !canSeeRez);
+        const toggleRez = document.getElementById('toggleRezervasyon');
+        if(toggleRez) toggleRez.parentElement.classList.toggle('hidden', !canSeeRez);
 
-    const toggleUretim = document.getElementById('toggleUretim');
-    if(toggleUretim) toggleUretim.parentElement.classList.toggle('hidden', !canSeeUretim);
+        const toggleUretim = document.getElementById('toggleUretim');
+        if(toggleUretim) toggleUretim.parentElement.classList.toggle('hidden', !canSeeUretim);
 
-    // Forms should be hidden for non-admins
-    document.getElementById('dataForm').classList.toggle('hidden', !isAdmin);
-    document.getElementById('stokForm').classList.toggle('hidden', !isAdmin);
-    document.getElementById('newPersonelForm').parentElement.parentElement.classList.toggle('hidden', !isAdmin);
-    document.getElementById('rezervForm').parentElement.classList.toggle('hidden', !isAdmin);
-    document.getElementById('recipeForm').parentElement.classList.toggle('hidden', !isAdmin);
-    document.getElementById('dailyUretimForm').parentElement.classList.toggle('hidden', !isAdmin);
-    
-    // Hide help text for non-admins
-    document.querySelectorAll('.badge-hint').forEach(el => el.classList.toggle('hidden', !isAdmin));
+        // Forms should be hidden for non-admins
+        document.getElementById('dataForm')?.classList.toggle('hidden', !isAdmin);
+        document.getElementById('stokForm')?.classList.toggle('hidden', !isAdmin);
+        document.getElementById('newPersonelForm')?.parentElement?.parentElement?.classList.toggle('hidden', !isAdmin);
+        document.getElementById('rezervForm')?.parentElement?.classList.toggle('hidden', !isAdmin);
+        document.getElementById('recipeForm')?.parentElement?.classList.toggle('hidden', !isAdmin);
+        document.getElementById('dailyUretimForm')?.parentElement?.classList.toggle('hidden', !isAdmin);
+        
+        // Hide help text for non-admins
+        document.querySelectorAll('.badge-hint').forEach(el => el.classList.toggle('hidden', !isAdmin));
+    } catch (err) {
+        console.error('UI Visibility Update Error:', err);
+    }
 };
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -236,9 +240,14 @@ const initApp = () => {
     initUretim();
 };
 
-checkAuth();
+// Uygulama başlatma
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkAuth);
+} else {
+    checkAuth();
+}
 
-// ── FIREBASE: SAVE ─────────────────────────────────────────────
+// 📦 FIREBASE: SAVE 📦─────────────────────────────────────────────
 const saveRecord = async (rec) => {
     try {
         await db.collection(COLLECTION).doc(rec.id).set(rec, { merge: true });
