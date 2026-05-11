@@ -9,6 +9,7 @@ const RESERV_COLLECTION = 'sultanahmet_rezervasyon';
 const RECIPE_COLLECTION = 'sultanahmet_receteler';
 const URETIM_COLLECTION = 'sultanahmet_uretim';
 const SALES_COLLECTION = 'sultanahmet_satis';
+const CUSTOMER_COLLECTION = 'sultanahmet_customers';
 
 let chartInstance = null;
 let allData = [];
@@ -20,6 +21,7 @@ let allReservations = [];
 let allRecipes = [];
 let allUretim = [];
 let allSales = [];
+let allCustomers = [];
 let currentUser = null;
 
 // --- UTILS ---
@@ -1389,8 +1391,13 @@ const renderReservations = () => {
             </td>
             <td style="text-align:left">
                 <div style="font-weight:700">${r.customer}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted)"><i class="fa-solid fa-user"></i> ${r.contact || '-'}</div>
             </td>
-            <td>${r.count} Kişi</td>
+            <td style="text-align:center;">
+                <div style="font-size:0.85rem">Ödeyen: <b>${r.count}</b></div>
+                <div style="font-size:0.75rem; color:var(--danger)">Free: ${r.freeCount || 0}</div>
+                <div style="font-size:0.85rem; font-weight:700; color:var(--accent); border-top:1px solid rgba(255,255,255,0.1); margin-top:2px;">Toplam: ${r.totalCount || r.count}</div>
+            </td>
             <td>
                 <div style="font-size:0.8rem">${r.menu || '-'}</div>
                 <div style="color:var(--amber)">${formatCurrency(r.price)} TL / Kişi</div>
@@ -1411,25 +1418,85 @@ const renderReservations = () => {
 document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
+        const customerName = document.getElementById('rezCustomer').value.trim();
+        const contact = document.getElementById('rezContact').value.trim();
+        const invoice = document.getElementById('rezInvoice').value.trim();
+        const count = parseInt(document.getElementById('rezCount').value) || 0;
+        const freeCount = parseInt(document.getElementById('rezFreeCount').value) || 0;
+        const timeStart = document.getElementById('rezTimeStart').value;
+        const timeEnd = document.getElementById('rezTimeEnd').value;
+
         const data = {
             date: document.getElementById('rezDate').value,
-            time: document.getElementById('rezTime').value,
-            count: parseInt(document.getElementById('rezCount').value) || 0,
-            customer: document.getElementById('rezCustomer').value,
+            time: `${timeStart} - ${timeEnd}`,
+            count: count,
+            freeCount: freeCount,
+            totalCount: count + freeCount,
+            customer: customerName,
+            contact: contact,
             menu: document.getElementById('rezMenu').value,
             price: parseFloat(document.getElementById('rezPrice').value) || 0,
             payment: document.getElementById('rezPayment').value,
-            invoice: document.getElementById('rezInvoice').value,
+            invoice: invoice,
             completed: false,
             createdAt: new Date().toISOString()
         };
 
+        // Müşteriyi otomatik kaydet/güncelle
+        if (customerName) {
+            const customerSlug = customerName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (customerSlug) {
+                await db.collection(CUSTOMER_COLLECTION).doc(customerSlug).set({
+                    name: customerName,
+                    contact: contact || '',
+                    invoice: invoice || '',
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            }
+        }
+
         await db.collection(RESERV_COLLECTION).add(data);
         alert('Rezervasyon BAŞARIYLA eklendi!');
         e.target.reset();
+        document.getElementById('rezTotalCount').value = '0';
     } catch (err) {
         alert('HATA OLUŞTU: ' + err.message);
         console.error('Rezervasyon Hatası:', err);
+    }
+});
+
+// Otomatik Toplam Hesaplama
+const updateRezTotal = () => {
+    const c = parseInt(document.getElementById('rezCount')?.value) || 0;
+    const f = parseInt(document.getElementById('rezFreeCount')?.value) || 0;
+    const totalEl = document.getElementById('rezTotalCount');
+    if(totalEl) totalEl.value = c + f;
+};
+document.getElementById('rezCount')?.addEventListener('input', updateRezTotal);
+document.getElementById('rezFreeCount')?.addEventListener('input', updateRezTotal);
+
+// Otomatik Menü Fiyatı Doldurma
+document.getElementById('rezMenu')?.addEventListener('input', (e) => {
+    const val = e.target.value;
+    const recipe = allRecipes.find(r => r.id === val);
+    const prod = allProducts[val.replace(/\s+/g, '')];
+    
+    // Eğer Reçetede fiyat yoksa Ürün listesinden çek
+    let price = 0;
+    if (prod && prod.price) price = prod.price;
+    // Eğer ikisinde de varsa ürün satış fiyatı önceliklidir, ama kullanıcının girmesi istenir
+    if (price > 0) {
+        document.getElementById('rezPrice').value = price;
+    }
+});
+
+// Otomatik Müşteri Bilgisi Doldurma
+document.getElementById('rezCustomer')?.addEventListener('input', (e) => {
+    const val = e.target.value;
+    const customer = allCustomers.find(c => c.name === val);
+    if (customer) {
+        if (customer.contact) document.getElementById('rezContact').value = customer.contact;
+        if (customer.invoice) document.getElementById('rezInvoice').value = customer.invoice;
     }
 });
 
@@ -1438,11 +1505,16 @@ document.getElementById('filterRezStatus')?.addEventListener('change', renderRes
 window.toggleRezStatus = async (id, status) => {
     try {
         const rezDoc = allReservations.find(r => r.id === id);
+        if (!rezDoc) return;
+
         await db.collection(RESERV_COLLECTION).doc(id).update({ completed: status });
         
-        // Eğer tamamlandıysa, Satış olarak kaydet (üretimden düşmek için)
-        if (status && rezDoc) {
-            await db.collection(SALES_COLLECTION).add({
+        if (status) {
+            const batch = db.batch();
+            
+            // 1. Satış olarak kaydet
+            const saleRef = db.collection(SALES_COLLECTION).doc();
+            batch.set(saleRef, {
                 date: rezDoc.date,
                 productName: rezDoc.menu || 'RESERV_MENU',
                 amount: rezDoc.count,
@@ -1450,14 +1522,77 @@ window.toggleRezStatus = async (id, status) => {
                 rezId: id,
                 createdAt: new Date().toISOString()
             });
-        } else if (!status) {
-            // Eğer onay geri alındıysa, ilgili satış kaydını sil
+
+            // 2. Stoktan Düşme İşlemi (Reçete varsa reçete, yoksa menü adı)
+            const recipe = allRecipes.find(r => r.id === rezDoc.menu);
+            if (recipe && recipe.ingredients) {
+                for (const ing of recipe.ingredients) {
+                    const reqAmount = ing.amount * (rezDoc.totalCount || rezDoc.count);
+                    const stokRef = db.collection(STOK_COLLECTION).doc();
+                    batch.set(stokRef, {
+                        date: rezDoc.date,
+                        product: ing.name,
+                        type: 'OUT',
+                        amount: reqAmount,
+                        notes: `Rez. (${rezDoc.customer}) - Reçete`,
+                        createdAt: new Date().toISOString(),
+                        rezId: id
+                    });
+                }
+            } else if (rezDoc.menu) {
+                const stokRef = db.collection(STOK_COLLECTION).doc();
+                batch.set(stokRef, {
+                    date: rezDoc.date,
+                    product: rezDoc.menu,
+                    type: 'OUT',
+                    amount: (rezDoc.totalCount || rezDoc.count),
+                    notes: `Rez. (${rezDoc.customer})`,
+                    createdAt: new Date().toISOString(),
+                    rezId: id
+                });
+            }
+
+            // 3. Finansal Tutarı Günlük Veriye İlave Et
+            const totalPrice = (rezDoc.count || 0) * (rezDoc.price || 0);
+            if (totalPrice > 0) {
+                const existingData = allData.find(d => d.date === rezDoc.date);
+                const dataId = existingData ? existingData.id : rezDoc.date.replace(/-/g, '');
+                const dataRef = db.collection(COLLECTION).doc(dataId);
+                
+                let updates = existingData ? { ...existingData } : { id: dataId, date: rezDoc.date };
+                const payType = (rezDoc.payment || '').toUpperCase('tr-TR');
+                
+                if (payType.includes('NAKİT') || payType.includes('NAKIT')) {
+                    updates.kasaNakit = (updates.kasaNakit || 0) + totalPrice;
+                } else if (payType.includes('KREDİ') || payType.includes('KREDI') || payType.includes('KART')) {
+                    updates.robotKredi = (updates.robotKredi || 0) + totalPrice;
+                } else {
+                    updates.cari = (updates.cari || 0) + totalPrice; // Havale/Cari/Acenta
+                }
+                updates.updatedAt = new Date().toISOString();
+                batch.set(dataRef, updates);
+            }
+
+            await batch.commit();
+            showToast('Ziyaret tamamlandı. Kasa ve Stoklar otomatik güncellendi.', 'success');
+        } else {
+            // Eğer onay geri alındıysa (beklemeye alındı)
             const sale = allSales.find(s => s.rezId === id);
             if(sale) await db.collection(SALES_COLLECTION).doc(sale.id).delete();
-        }
 
-        showToast(status ? 'Ziyaret tamamlandı ve satış işlendi.' : 'Ziyaret beklemeye alındı.');
-    } catch (e) { showToast('Hata!', 'error'); }
+            // Stok hareketlerini geri al
+            const stokDocs = await db.collection(STOK_COLLECTION).where('rezId', '==', id).get();
+            if (!stokDocs.empty) {
+                const batch = db.batch();
+                stokDocs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            }
+            showToast('Ziyaret beklemeye alındı. Satış ve stok düşümleri iptal edildi.');
+        }
+    } catch (e) { 
+        showToast('Hata oluştu!', 'error'); 
+        console.error(e);
+    }
 };
 
 window.deleteReservation = async (id) => {
@@ -1473,6 +1608,32 @@ const initReservations = () => {
     db.collection(RESERV_COLLECTION).orderBy('date', 'desc').onSnapshot(snap => {
         allReservations = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderReservations();
+    });
+
+    db.collection(CUSTOMER_COLLECTION).onSnapshot(snap => {
+        allCustomers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const list = document.getElementById('rezCustomerList');
+        if (list) {
+            list.innerHTML = '';
+            allCustomers.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                list.appendChild(opt);
+            });
+        }
+    });
+
+    db.collection(RECIPE_COLLECTION).onSnapshot(snap => {
+        allRecipes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const list = document.getElementById('rezMenuList');
+        if (list) {
+            list.innerHTML = '';
+            allRecipes.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id; // Recipe names are IDs
+                list.appendChild(opt);
+            });
+        }
     });
 };
 

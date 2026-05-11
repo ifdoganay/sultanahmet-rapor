@@ -570,28 +570,48 @@
                     <h2><i class="fa-solid fa-file-contract"></i> Yeni Rezervasyon Kaydı</h2>
                 </div>
                 <form id="rezervForm">
+                    <datalist id="rezMenuList"></datalist>
+                    <datalist id="rezCustomerList"></datalist>
                     <div class="form-row-4">
                         <div class="form-group">
                             <label>Ziyaret Tarihi</label>
                             <input type="date" id="rezDate" required>
                         </div>
                         <div class="form-group">
-                            <label>Saat Aralığı (Örn: 14:00 - 16:00)</label>
-                            <input type="text" id="rezTime" placeholder="12:00 - 14:00" required>
+                            <label>Geliş Saati</label>
+                            <input type="time" id="rezTimeStart" required>
                         </div>
                         <div class="form-group">
-                            <label>Kişi Sayısı</label>
-                            <input type="number" id="rezCount" placeholder="0" required>
+                            <label>Bitiş Saati</label>
+                            <input type="time" id="rezTimeEnd" required>
                         </div>
                         <div class="form-group">
                             <label>Müşteri/Grup Adı</label>
-                            <input type="text" id="rezCustomer" placeholder="Grup veya Şirket Adı" required>
+                            <input type="text" id="rezCustomer" list="rezCustomerList" placeholder="Grup veya Şirket Adı" autocomplete="off" required>
+                        </div>
+                    </div>
+                    <div class="form-row-4" style="margin-top:0.75rem">
+                        <div class="form-group">
+                            <label>Yetkili Kişi</label>
+                            <input type="text" id="rezContact" placeholder="Ad Soyad / Telefon">
+                        </div>
+                        <div class="form-group">
+                            <label>Ödeyen Kişi Sayısı</label>
+                            <input type="number" id="rezCount" placeholder="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Free (Ücretsiz) Sayısı</label>
+                            <input type="number" id="rezFreeCount" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Toplam Kişi</label>
+                            <input type="number" id="rezTotalCount" placeholder="0" readonly style="background: rgba(255,255,255,0.1); cursor: not-allowed;">
                         </div>
                     </div>
                     <div class="form-row-4" style="margin-top:0.75rem">
                         <div class="form-group">
                             <label>Seçilen Menü</label>
-                            <input type="text" id="rezMenu" placeholder="Menü Detayı">
+                            <input type="text" id="rezMenu" list="rezMenuList" placeholder="Menü Seçin veya Yazın" autocomplete="off">
                         </div>
                         <div class="form-group">
                             <label>Kişi Başı Menü Fiyatı (TL)</label>
@@ -906,6 +926,6 @@
         document.getElementById(id).classList.toggle('hidden', !show);
     }
 </script>
-<script src="app_v6.js?v=4"></script>
+<script src="app_v6.js?v=5"></script>
 </body>
 </html>
