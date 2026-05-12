@@ -239,38 +239,68 @@ const initApp = () => {
     });
 
     // Scanner Controls
-    document.getElementById('btnScanBarcode')?.addEventListener('click', async () => {
+    const startScanner = async (targetInputId) => {
+        // Check for secure context (HTTPS) - required for camera
+        if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+            showToast('Kamera erişimi için HTTPS (güvenli bağlantı) gereklidir!', 'error');
+            return;
+        }
+
         const container = document.getElementById('barcodeScannerContainer');
         container.classList.remove('hidden');
         
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("scannerReader");
-        }
-
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
         try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("scannerReader");
+            }
+
+            // Eğer zaten çalışıyorsa önce durdur
+            if (html5QrCode.isScanning) {
+                await html5QrCode.stop();
+            }
+
+            const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+
             await html5QrCode.start(
                 { facingMode: "environment" }, 
                 config,
                 (decodedText) => {
-                    document.getElementById('inputStokBarcode').value = decodedText;
-                    document.getElementById('inputStokBarcode').dispatchEvent(new Event('input'));
+                    const targetInput = document.getElementById(targetInputId);
+                    if (targetInput) {
+                        targetInput.value = decodedText;
+                        targetInput.dispatchEvent(new Event('input'));
+                    }
                     stopScanner();
+                    showToast('Barkod başarıyla okundu.');
                 },
                 (errorMessage) => {
                     // console.log(errorMessage);
                 }
             );
         } catch (err) {
-            console.error(err);
-            showToast('Kamera başlatılamadı!', 'error');
+            console.error("Camera Start Error:", err);
+            // Daha detaylı hata mesajı
+            if (err.name === 'NotAllowedError') {
+                showToast('Kamera izni reddedildi!', 'error');
+            } else if (err.name === 'NotFoundError') {
+                showToast('Kamera bulunamadı!', 'error');
+            } else {
+                showToast('Kamera başlatılamadı! Lütfen HTTPS bağlantısını ve izinleri kontrol edin.', 'error');
+            }
+            document.getElementById('barcodeScannerContainer').classList.add('hidden');
         }
-    });
+    };
+
+    document.getElementById('btnScanBarcode')?.addEventListener('click', () => startScanner('inputStokBarcode'));
+    document.getElementById('btnScanEditBarcode')?.addEventListener('click', () => startScanner('editProductBarcode'));
 
     window.stopScanner = async () => {
-        if (html5QrCode && html5QrCode.isScanning) {
-            await html5QrCode.stop();
+        try {
+            if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.stop();
+            }
+        } catch (e) {
+            console.error("Stop Error:", e);
         }
         document.getElementById('barcodeScannerContainer').classList.add('hidden');
     };
@@ -813,29 +843,9 @@ window.editProductName = (oldName) => {
 };
 
 document.getElementById('btnScanEditBarcode')?.addEventListener('click', async () => {
-    const container = document.getElementById('barcodeScannerContainer');
-    container.classList.remove('hidden');
-    
-    if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("scannerReader");
-    }
-
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-    try {
-        await html5QrCode.start(
-            { facingMode: "environment" }, 
-            config,
-            (decodedText) => {
-                document.getElementById('editProductBarcode').value = decodedText;
-                stopScanner();
-            },
-            (errorMessage) => {}
-        );
-    } catch (err) {
-        console.error(err);
-        showToast('Kamera başlatılamadı!', 'error');
-    }
+    // startScanner fonksiyonu yukarıda initApp içinde tanımlı olduğu için 
+    // buradaki eski dinleyiciyi silebiliriz veya startScanner'ı global yapabiliriz.
+    // Ancak initApp içinde zaten btnScanEditBarcode için dinleyici ekledik.
 });
 
 document.getElementById('productEditForm')?.addEventListener('submit', async (e) => {
