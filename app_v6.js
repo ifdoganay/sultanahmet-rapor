@@ -23,6 +23,7 @@ let allUretim = [];
 let allSales = [];
 let allCustomers = [];
 let currentUser = null;
+let html5QrCode = null;
 
 // --- UTILS ---
 const formatCurrency = (amount) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount || 0);
@@ -221,6 +222,60 @@ const initApp = () => {
         }
         processStokData();
     });
+
+    // Barcode Listener
+    document.getElementById('inputStokBarcode')?.addEventListener('input', (e) => {
+        const barcode = e.target.value.trim();
+        if (!barcode) return;
+
+        // Find product by barcode
+        const product = Object.values(allProducts).find(p => p.barcode === barcode);
+        if (product) {
+            document.getElementById('inputStokProduct').value = product.name;
+            document.getElementById('inputStokUnit').value = product.unit || '';
+            if (product.price) document.getElementById('inputStokPrice').value = product.price;
+            showToast(`Ürün bulundu: ${product.name}`);
+        }
+    });
+
+    // Scanner Controls
+    document.getElementById('btnScanBarcode')?.addEventListener('click', async () => {
+        const container = document.getElementById('barcodeScannerContainer');
+        container.classList.remove('hidden');
+        
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("scannerReader");
+        }
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        try {
+            await html5QrCode.start(
+                { facingMode: "environment" }, 
+                config,
+                (decodedText) => {
+                    document.getElementById('inputStokBarcode').value = decodedText;
+                    document.getElementById('inputStokBarcode').dispatchEvent(new Event('input'));
+                    stopScanner();
+                },
+                (errorMessage) => {
+                    // console.log(errorMessage);
+                }
+            );
+        } catch (err) {
+            console.error(err);
+            showToast('Kamera başlatılamadı!', 'error');
+        }
+    });
+
+    window.stopScanner = async () => {
+        if (html5QrCode && html5QrCode.isScanning) {
+            await html5QrCode.stop();
+        }
+        document.getElementById('barcodeScannerContainer').classList.add('hidden');
+    };
+
+    document.getElementById('btnCloseScanner')?.addEventListener('click', stopScanner);
 
     // Personel Master
     db.collection(PERSONEL_MASTER_COL).onSnapshot(snapshot => {
@@ -699,6 +754,7 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const date = document.getElementById('inputStokDate').value;
     const type = document.getElementById('inputStokType').value;
+    const barcode = document.getElementById('inputStokBarcode').value.trim();
     const productName = document.getElementById('inputStokProduct').value.trim().toUpperCase('tr-TR');
     const amount = parseFloat(document.getElementById('inputStokAmount').value) || 0;
     const price  = parseFloat(document.getElementById('inputStokPrice').value) || 0;
@@ -708,10 +764,11 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
 
     const productSlug = productName.replace(/\s+/g, '');
     
-    // 1. Ürün bilgilerini (fiyat, birim) güncelle
-    if (price > 0 || unit || !allProducts[productSlug]) {
+    // 1. Ürün bilgilerini (fiyat, birim, barkod) güncelle
+    if (price > 0 || unit || barcode || !allProducts[productSlug]) {
         await db.collection(PRODUCT_COLLECTION).doc(productSlug).set({
             name: productName,
+            barcode: barcode || (allProducts[productSlug] ? (allProducts[productSlug].barcode || '') : ''),
             price: price || (allProducts[productSlug] ? allProducts[productSlug].price : 0),
             unit: unit || (allProducts[productSlug] ? (allProducts[productSlug].unit || '') : ''),
             isActive: allProducts[productSlug] ? (allProducts[productSlug].isActive !== false) : true,
@@ -735,11 +792,12 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     await saveStokRecord(rec);
     
     // Formu temizle
+    document.getElementById('inputStokBarcode').value = '';
     document.getElementById('inputStokProduct').value = '';
     document.getElementById('inputStokAmount').value = '';
     document.getElementById('inputStokPrice').value  = '';
     document.getElementById('inputStokUnit').value   = '';
-    document.getElementById('inputStokProduct').focus();
+    document.getElementById('inputStokBarcode').focus();
 });
 
 window.editProductName = async (oldName) => {
