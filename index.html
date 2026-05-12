@@ -33,6 +33,9 @@
     <!-- Charts (Chart.js) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- Barcode Scanner -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -262,6 +265,13 @@
                             </select>
                         </div>
                         <div class="form-group">
+                            <label>Barkod</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="inputStokBarcode" placeholder="Barkod okutun">
+                                <button type="button" id="btnScanBarcode" class="btn btn-outline" style="padding: 0.5rem; width: 45px;"><i class="fa-solid fa-camera"></i></button>
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label>Ürün Adı</label>
                             <input type="text" id="inputStokProduct" list="productList" placeholder="Ürün seçin veya yazın" required>
                             <datalist id="productList"></datalist>
@@ -295,6 +305,11 @@
                         </div>
                     </div>
                 </form>
+                <!-- Scanner Preview Container -->
+                <div id="barcodeScannerContainer" class="hidden" style="margin-top: 1rem; border: 2px solid var(--primary); border-radius: 12px; overflow: hidden; position: relative;">
+                    <div id="scannerReader" style="width: 100%;"></div>
+                    <button type="button" id="btnCloseScanner" class="btn btn-danger btn-sm" style="position: absolute; top: 10px; right: 10px; z-index: 10;"><i class="fa-solid fa-times"></i> Kapat</button>
+                </div>
             </section>
 
             <!-- ANLIK STOK DURUM TABLOSU -->
