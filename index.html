@@ -928,6 +928,37 @@
     </div>
 </div>
 
+<!-- PRODUCT EDIT MODAL -->
+<div id="productEditModal" class="modal hidden">
+    <div class="modal-content glass-panel" style="max-width: 400px;">
+        <div class="section-header">
+            <h2><i class="fa-solid fa-pen-to-square"></i> Ürün Düzenle</h2>
+            <button class="btn-icon" onclick="toggleModal('productEditModal', false)"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <form id="productEditForm">
+            <input type="hidden" id="editProductOldName">
+            <div class="form-group">
+                <label>Ürün Adı</label>
+                <input type="text" id="editProductNameInput" required>
+            </div>
+            <div class="form-group">
+                <label>Barkod</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="editProductBarcode">
+                    <button type="button" id="btnScanEditBarcode" class="btn btn-outline" style="padding: 0.5rem; width: 45px;"><i class="fa-solid fa-camera"></i></button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Birim</label>
+                <input type="text" id="editProductUnit">
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary">Güncelle</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 

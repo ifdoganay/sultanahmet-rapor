@@ -800,39 +800,89 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     document.getElementById('inputStokBarcode').focus();
 });
 
-window.editProductName = async (oldName) => {
-    const newName = prompt('Ürün adını düzenleyin:', oldName);
-    if (!newName || newName === oldName) return;
-
+window.editProductName = (oldName) => {
     const oldSlug = oldName.toUpperCase('tr-TR').replace(/\s+/g, '');
-    const newSlug = newName.trim().toUpperCase('tr-TR').replace(/\s+/g, '');
+    const product = allProducts[oldSlug];
+    
+    document.getElementById('editProductOldName').value = oldName;
+    document.getElementById('editProductNameInput').value = oldName;
+    document.getElementById('editProductBarcode').value = product ? (product.barcode || '') : '';
+    document.getElementById('editProductUnit').value = product ? (product.unit || '') : '';
+    
+    toggleModal('productEditModal', true);
+};
+
+document.getElementById('btnScanEditBarcode')?.addEventListener('click', async () => {
+    const container = document.getElementById('barcodeScannerContainer');
+    container.classList.remove('hidden');
+    
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("scannerReader");
+    }
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
     try {
-        // 1. Ürün master kaydını güncelle/taşı
+        await html5QrCode.start(
+            { facingMode: "environment" }, 
+            config,
+            (decodedText) => {
+                document.getElementById('editProductBarcode').value = decodedText;
+                stopScanner();
+            },
+            (errorMessage) => {}
+        );
+    } catch (err) {
+        console.error(err);
+        showToast('Kamera başlatılamadı!', 'error');
+    }
+});
+
+document.getElementById('productEditForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const oldName = document.getElementById('editProductOldName').value;
+    const newName = document.getElementById('editProductNameInput').value.trim().toUpperCase('tr-TR');
+    const barcode = document.getElementById('editProductBarcode').value.trim();
+    const unit = document.getElementById('editProductUnit').value.trim().toUpperCase('tr-TR');
+
+    if (!newName) return;
+
+    const oldSlug = oldName.toUpperCase('tr-TR').replace(/\s+/g, '');
+    const newSlug = newName.replace(/\s+/g, '');
+
+    try {
+        const batch = db.batch();
         const oldProd = allProducts[oldSlug];
-        if (oldProd) {
-            await db.collection(PRODUCT_COLLECTION).doc(newSlug).set({
-                ...oldProd,
-                name: newName.trim().toUpperCase('tr-TR'),
-                updatedAt: new Date().toISOString()
+        
+        // 1. Ürün master kaydını güncelle
+        const updatedProdData = {
+            name: newName,
+            barcode: barcode,
+            unit: unit,
+            price: oldProd ? (oldProd.price || 0) : 0,
+            isActive: oldProd ? (oldProd.isActive !== false) : true,
+            updatedAt: new Date().toISOString()
+        };
+
+        batch.set(db.collection(PRODUCT_COLLECTION).doc(newSlug), updatedProdData);
+        if (oldSlug !== newSlug) {
+            batch.delete(db.collection(PRODUCT_COLLECTION).doc(oldSlug));
+            
+            // 2. Hareketlerdeki isimleri güncelle
+            const snap = await db.collection(STOK_COLLECTION).where('productName', '==', oldName).get();
+            snap.docs.forEach(doc => {
+                batch.update(doc.ref, { productName: newName });
             });
-            if (oldSlug !== newSlug) await db.collection(PRODUCT_COLLECTION).doc(oldSlug).delete();
         }
 
-        // 2. Tüm hareketlerdeki ismi güncelle (Batch ile)
-        const snap = await db.collection(STOK_COLLECTION).where('productName', '==', oldName).get();
-        const batch = db.batch();
-        snap.docs.forEach(doc => {
-            batch.update(doc.ref, { productName: newName.trim().toUpperCase('tr-TR') });
-        });
         await batch.commit();
-        
-        showToast('Ürün adı başarıyla güncellendi.');
+        toggleModal('productEditModal', false);
+        showToast('Ürün başarıyla güncellendi.');
     } catch (e) {
         console.error(e);
         showToast('Güncelleme sırasında hata!', 'error');
     }
-};
+});
 
 // Arama Filtresi
 document.getElementById('stokSearch').addEventListener('input', (e) => {
