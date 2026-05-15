@@ -1,4 +1,4 @@
-﻿console.log('App Version: 6.0 (Admin Password Updated)');
+console.log('App Version: 6.0 (Admin Password Updated)');
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
@@ -1585,7 +1585,7 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
         await db.collection(RESERV_COLLECTION).add(data);
         showToast('Rezervasyon kaydedildi.', 'success');
         if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
-            const text = 🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: \n⏰ Saat: \n👥 Kişi: \n📌 Grup: \n🍽 Menü: \n\nLütfen hazırlıklarınızı buna göre planlayın.;
+            const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Kişi: " + data.totalCount + "\n📌 Grup: " + data.customer + "\n🍽 Menü: " + data.menu + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
             window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
         }
         e.target.reset();
@@ -1706,6 +1706,12 @@ window.toggleRezStatus = async (id, status) => {
 
             await batch.commit();
             showToast('Ziyaret tamamlandı. Kasa ve Stoklar otomatik güncellendi.', 'success');
+
+            if (confirm("Rezervasyon Muhasebe ve Şeflere WhatsApp'tan bildirilsin mi?")) {
+                const total = (rezDoc.count * rezDoc.price).toFixed(2);
+                const text = "✅ *REZERVASYON TAMAMLANDI*\n\n📅 Tarih: " + rezDoc.date + "\n📌 Grup: " + rezDoc.customer + "\n👥 Gelen Kişi: " + rezDoc.count + "\n💰 Toplam Tutar: " + total + " TL\n💳 Ödeme Türü: " + rezDoc.payment + "\n🧾 Fatura: " + (rezDoc.invoice || 'Yok') + "\n\nSistem kayıtlarına başarıyla işlenmiştir.";
+                window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+            }
         } else {
             // Eğer onay geri alındıysa (beklemeye alındı)
             const sale = allSales.find(s => s.rezId === id);
