@@ -2155,3 +2155,114 @@ const parseSalesExcel = async (file) => {
         reader.readAsArrayBuffer(file);
     });
 };
+
+// =========================================================
+// OTO-GÜNCELLEME SİSTEMİ (HIZLI EXCEL / PDF YÜKLEYİCİ)
+// =========================================================
+document.addEventListener('DOMContentLoaded', () => {
+    const autoInput = document.getElementById('autoUpdateInput');
+    if (autoInput) {
+        autoInput.addEventListener('change', async (e) => {
+            if (!e.target.files.length) return;
+            const files = Array.from(e.target.files);
+            
+            showToast('Toplu işleme başladı, lütfen bekleyin...', 'info');
+            let pdfCount = 0;
+            let excelCount = 0;
+            let salesAdded = 0;
+
+            for (const file of files) {
+                const ext = file.name.split('.').pop().toLowerCase();
+                
+                try {
+                    // 1. PDF İŞLEME (Mali Analiz Raporları)
+                    if (ext === 'pdf') {
+                        const text = await extractTextFromPDF(file);
+                        const rec = parseDataFromText(text, file.name);
+                        if (rec) {
+                            await db.collection(RAPORLAR_COLLECTION).doc(rec.date).set(rec, { merge: true });
+                            pdfCount++;
+                        }
+                    } 
+                    // 2. EXCEL İŞLEME (Satışlar ve Reçete Düşümleri)
+                    else if (ext === 'xlsx' || ext === 'xls') {
+                        if (typeof XLSX === 'undefined') {
+                            showToast('Excel kütüphanesi yüklenemedi.', 'error');
+                            continue;
+                        }
+                        
+                        const data = await parseSalesExcel(file);
+                        if (data && data.length > 0) {
+                            // Reçeteleri al (Satışları hammaddeden düşmek için)
+                            const recipesSnap = await db.collection(RECIPE_COLLECTION).get();
+                            const recipes = {};
+                            recipesSnap.forEach(doc => {
+                                recipes[doc.data().name.toUpperCase('tr-TR')] = doc.data().ingredients;
+                            });
+
+                            const processedOuts = [];
+                            for (const sale of data) {
+                                const prodName = sale.productName;
+                                if (recipes[prodName]) {
+                                    // Reçetesi var, hammaddeleri düş
+                                    for (const ing of recipes[prodName]) {
+                                        processedOuts.push({
+                                            date: sale.date,
+                                            product: ing.name.toUpperCase('tr-TR'),
+                                            amount: ing.amount * sale.amount
+                                        });
+                                    }
+                                } else {
+                                    // Reçetesi yok, direkt kendisini düş
+                                    processedOuts.push({
+                                        date: sale.date,
+                                        product: prodName,
+                                        amount: sale.amount
+                                    });
+                                }
+                            }
+
+                            // Firebase'e Stok Çıkışlarını Yaz
+                            const chunkSize = 400;
+                            for (let i = 0; i < processedOuts.length; i += chunkSize) {
+                                const chunk = processedOuts.slice(i, i + chunkSize);
+                                const batch = db.batch();
+                                for (const item of chunk) {
+                                    // Ürünü aktif et
+                                    const productSlug = item.product.replace(/\s+/g, '').replace(/,/g, '');
+                                    const prodRef = db.collection(PRODUCT_COLLECTION).doc(productSlug);
+                                    batch.set(prodRef, {
+                                        name: item.product, isActive: true, unit: 'ADET', updatedAt: new Date().toISOString()
+                                    }, { merge: true });
+
+                                    // Stok hareketini yaz
+                                    const id = item.date.replace(/-/g, '') + '_OUT_' + productSlug + '_' + Math.random().toString(36).substr(2, 5);
+                                    const stokRef = db.collection(STOK_COLLECTION).doc(id);
+                                    batch.set(stokRef, {
+                                        id: id,
+                                        date: item.date,
+                                        type: 'OUT',
+                                        productName: item.product,
+                                        amount: item.amount,
+                                        price: 0,
+                                        unit: 'ADET',
+                                        updatedAt: new Date().toISOString(),
+                                        source: 'AUTO_EXCEL'
+                                    }, { merge: true });
+                                }
+                                await batch.commit();
+                            }
+                            excelCount++;
+                            salesAdded += data.length;
+                        }
+                    }
+                } catch (err) {
+                    console.error('Hata:', file.name, err);
+                }
+            }
+            
+            showToast(İşlem Tamam!  PDF okundu.  Excel'den  satış ürünü stoklardan düşüldü., 'success');
+            autoInput.value = '';
+        });
+    }
+});

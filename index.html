@@ -56,6 +56,8 @@
             <button id="btnExportExcel" class="btn btn-success"><i class="fa-solid fa-file-excel"></i> Excel İndir</button>
             <button id="btnExportPDF"   class="btn btn-danger"><i class="fa-solid fa-file-pdf"></i> PDF İndir</button>
             <button id="btnClearData"   class="btn btn-outline admin-only hidden"><i class="fa-solid fa-trash"></i> Tümünü Sil</button>
+            <button id="btnAutoUpdate" class="btn btn-primary" onclick="document.getElementById('autoUpdateInput').click()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border:none;"><i class="fa-solid fa-rotate"></i> Hızlı Güncelle (Excel/PDF)</button>
+            <input type="file" id="autoUpdateInput" accept=".pdf, .xlsx, .xls" multiple hidden>
         </div>
     </header>
 
