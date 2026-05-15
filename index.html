@@ -644,8 +644,22 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Fatura Bilgileri (Opsiyonel)</label>
-                            <input type="text" id="rezInvoice" placeholder="V.N. / Adres vb.">
+                            <label>Fatura Unvanı (Opsiyonel)</label>
+                            <input type="text" id="rezInvoice" placeholder="Şirket / Şahıs Adı">
+                        </div>
+                    </div>
+                    <div class="form-row-4" style="margin-top:0.75rem">
+                        <div class="form-group">
+                            <label>Vergi Dairesi</label>
+                            <input type="text" id="rezTaxOffice" placeholder="Vergi Dairesi">
+                        </div>
+                        <div class="form-group">
+                            <label>Vergi Numarası</label>
+                            <input type="text" id="rezTaxNumber" placeholder="V.N. / T.C.">
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Adres</label>
+                            <input type="text" id="rezAddress" placeholder="Fatura Adresi">
                         </div>
                     </div>
                     <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
@@ -974,6 +988,6 @@
         document.getElementById(id).classList.toggle('hidden', !show);
     }
 </script>
-<script src="app_v6.js?v=10"></script>
+<script src="app_v6.js?v=11"></script>
 </body>
 </html>
