@@ -2261,7 +2261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            showToast(İşlem Tamam!  PDF okundu.  Excel'den  satış ürünü stoklardan düşüldü., 'success');
+            showToast("İşlem Tamam! " + pdfCount + " PDF okundu. " + excelCount + " Excel'den " + salesAdded + " satış stoklardan düşüldü.", 'success');
             autoInput.value = '';
         });
     }
