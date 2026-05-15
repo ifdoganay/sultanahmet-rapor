@@ -1,4 +1,4 @@
-console.log('App Version: 6.0 (Admin Password Updated)');
+﻿console.log('App Version: 6.0 (Admin Password Updated)');
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
@@ -1583,7 +1583,11 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
         }
 
         await db.collection(RESERV_COLLECTION).add(data);
-        alert('Rezervasyon BAŞARIYLA eklendi!');
+        showToast('Rezervasyon kaydedildi.', 'success');
+        if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
+            const text = 🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: \n⏰ Saat: \n👥 Kişi: \n📌 Grup: \n🍽 Menü: \n\nLütfen hazırlıklarınızı buna göre planlayın.;
+            window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+        }
         e.target.reset();
         document.getElementById('rezTotalCount').value = '0';
     } catch (err) {
@@ -2266,3 +2270,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+
+
