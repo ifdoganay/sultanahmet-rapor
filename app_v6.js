@@ -1533,6 +1533,8 @@ const renderReservations = () => {
             <td style="text-align:left; font-size:0.75rem">
                 <div><b>Ödeme:</b> ${r.payment}</div>
                 <div><b>Fatura:</b> ${r.invoice || '-'}</div>
+                ${r.taxNumber ? `<div><b>V.N.:</b> ${r.taxNumber}</div>` : ''}
+                ${r.taxOffice ? `<div><b>V.D.:</b> ${r.taxOffice}</div>` : ''}
             </td>
             <td>
                 <button class="btn-icon" onclick="deleteReservation('${r.id}')" title="Sil"><i class="fa-solid fa-trash"></i></button>
@@ -1548,6 +1550,9 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
         const customerName = document.getElementById('rezCustomer').value.trim();
         const contact = document.getElementById('rezContact').value.trim();
         const invoice = document.getElementById('rezInvoice').value.trim();
+        const taxOffice = document.getElementById('rezTaxOffice').value.trim();
+        const taxNumber = document.getElementById('rezTaxNumber').value.trim();
+        const address = document.getElementById('rezAddress').value.trim();
         const count = parseInt(document.getElementById('rezCount').value) || 0;
         const freeCount = parseInt(document.getElementById('rezFreeCount').value) || 0;
         const timeStart = document.getElementById('rezTimeStart').value;
@@ -1565,6 +1570,9 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
             price: parseFloat(document.getElementById('rezPrice').value) || 0,
             payment: document.getElementById('rezPayment').value,
             invoice: invoice,
+            taxOffice: taxOffice,
+            taxNumber: taxNumber,
+            address: address,
             completed: false,
             createdAt: new Date().toISOString()
         };
@@ -1577,6 +1585,9 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
                     name: customerName,
                     contact: contact || '',
                     invoice: invoice || '',
+                    taxOffice: taxOffice || '',
+                    taxNumber: taxNumber || '',
+                    address: address || '',
                     updatedAt: new Date().toISOString()
                 }, { merge: true });
             }
@@ -1585,7 +1596,7 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
         await db.collection(RESERV_COLLECTION).add(data);
         showToast('Rezervasyon kaydedildi.', 'success');
         if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
-            const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + "\n🍽 Menü: " + (data.menu || '-') + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
+            const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + "\n🍽 Menü: " + (data.menu || '-') + (data.invoice ? "\n🧾 Fatura: " + data.invoice : "") + (data.taxNumber ? "\n🆔 V.N.: " + data.taxNumber : "") + (data.taxOffice ? "\n🏢 V.D.: " + data.taxOffice : "") + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
             window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
         }
         e.target.reset();
@@ -1628,6 +1639,9 @@ document.getElementById('rezCustomer')?.addEventListener('input', (e) => {
     if (customer) {
         if (customer.contact) document.getElementById('rezContact').value = customer.contact;
         if (customer.invoice) document.getElementById('rezInvoice').value = customer.invoice;
+        if (customer.taxOffice) document.getElementById('rezTaxOffice').value = customer.taxOffice;
+        if (customer.taxNumber) document.getElementById('rezTaxNumber').value = customer.taxNumber;
+        if (customer.address) document.getElementById('rezAddress').value = customer.address;
     }
 });
 
@@ -1709,7 +1723,7 @@ window.toggleRezStatus = async (id, status) => {
 
             if (confirm("Rezervasyon Muhasebe ve Şeflere WhatsApp'tan bildirilsin mi?")) {
                 const total = (rezDoc.count * rezDoc.price).toFixed(2);
-                const text = "✅ *REZERVASYON TAMAMLANDI*\n\n📅 Tarih: " + rezDoc.date + "\n📌 Grup: " + rezDoc.customer + "\n👤 İlgili Kişi: " + (rezDoc.contact || '-') + "\n👥 Gelen Kişi: " + rezDoc.count + " (+" + (rezDoc.freeCount || 0) + " Free)\n🍽 Menü: " + (rezDoc.menu || '-') + "\n💰 Toplam Tutar: " + total + " TL\n💳 Ödeme Türü: " + rezDoc.payment + "\n🧾 Fatura: " + (rezDoc.invoice || 'Yok') + "\n\nSistem kayıtlarına başarıyla işlenmiştir.";
+                const text = "✅ *REZERVASYON TAMAMLANDI*\n\n📅 Tarih: " + rezDoc.date + "\n📌 Grup: " + rezDoc.customer + "\n👤 İlgili Kişi: " + (rezDoc.contact || '-') + "\n👥 Gelen Kişi: " + rezDoc.count + " (+" + (rezDoc.freeCount || 0) + " Free)\n🍽 Menü: " + (rezDoc.menu || '-') + "\n💰 Toplam Tutar: " + total + " TL\n💳 Ödeme Türü: " + rezDoc.payment + "\n🧾 Fatura: " + (rezDoc.invoice || 'Yok') + (rezDoc.taxNumber ? "\n🆔 V.N.: " + rezDoc.taxNumber : "") + (rezDoc.taxOffice ? "\n🏢 V.D.: " + rezDoc.taxOffice : "") + "\n\nSistem kayıtlarına başarıyla işlenmiştir.";
                 window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
             }
         } else {
