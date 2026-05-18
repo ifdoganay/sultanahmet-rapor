@@ -22,6 +22,7 @@ let allRecipes = [];
 let allUretim = [];
 let allSales = [];
 let allCustomers = [];
+let allStokItems = []; // Added to fix export reference errors
 let currentUser = null;
 let html5QrCode = null;
 
@@ -502,10 +503,13 @@ const processStokData = () => {
     const pricePool = {}; // { slug: { totalCost: 0, totalQty: 0 } }
 
     sortedMoves.forEach(m => {
-        const slug = m.productName.toUpperCase('tr-TR').replace(/\s+/g, '');
+        const pName = m.productName || m.product;
+        if (!pName) return;
+        
+        const slug = pName.toUpperCase('tr-TR').replace(/\s+/g, '');
         if (!status[slug]) {
              status[slug] = { 
-                 name: m.productName, price: 0, unit: '', 
+                 name: pName, price: 0, unit: '', 
                  isActive: true,
                  count: 0, in: 0, out: 0, balance: 0, lastCountDate: '0000-00-00' 
              };
@@ -566,13 +570,25 @@ const renderStokStatus = (status) => {
     const isAdmin = currentUser && currentUser.role === 'admin';
     body.innerHTML = '';
     
+    let prodCount = 0;
     let totalVal = 0;
     let criticalCount = 0;
-    let prodCount = 0;
+
+    allStokItems = []; // Populate for exports
 
     Object.keys(status).forEach(slug => {
         const s = status[slug];
         
+        // Export data preparation
+        allStokItems.push({
+            name: s.name,
+            unit: s.unit,
+            stock: s.balance,
+            price: s.price,
+            category: '', // Add if needed
+            status: s.isActive ? 'ACTIVE' : 'PASSIVE'
+        });
+
         // Filter logic
         if (filter === 'ACTIVE' && !s.isActive) return;
         if (filter === 'PASSIVE' && s.isActive) return;
@@ -1488,6 +1504,79 @@ document.getElementById('filterPersonelName')?.addEventListener('change', proces
 document.getElementById('filterDeptName')?.addEventListener('change', processPersonelData);
 // ──────────────────────────────────────────────────────────────────
 // ── RESERVATION LOGIC ──────────────────────────────────────────
+let editingRezId = null;
+
+const clearRezEditMode = () => {
+    editingRezId = null;
+    document.getElementById('rezervForm').reset();
+    document.getElementById('rezTotalCount').value = '0';
+    
+    const submitBtn = document.querySelector('#rezervForm button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.innerHTML = '<i class="fa-solid fa-save"></i> Rezervasyonu Kaydet';
+        submitBtn.className = 'btn btn-primary';
+    }
+    
+    const cancelBtn = document.getElementById('btnCancelRezEdit');
+    if (cancelBtn) {
+        cancelBtn.remove();
+    }
+};
+
+window.editReservation = (id) => {
+    const rez = allReservations.find(r => r.id === id);
+    if (!rez) return;
+    
+    if (rez.completed) {
+        showToast('Onaylanmış rezervasyonlar düzenlenemez!', 'error');
+        return;
+    }
+    
+    document.getElementById('rezDate').value = rez.date || '';
+    if (rez.time) {
+        const parts = rez.time.split(' - ');
+        if (parts.length === 2) {
+            document.getElementById('rezTimeStart').value = parts[0];
+            document.getElementById('rezTimeEnd').value = parts[1];
+        }
+    }
+    document.getElementById('rezCustomer').value = rez.customer || '';
+    document.getElementById('rezContact').value = rez.contact || '';
+    document.getElementById('rezCount').value = rez.count || '';
+    document.getElementById('rezFreeCount').value = rez.freeCount || '';
+    document.getElementById('rezTotalCount').value = rez.totalCount || '';
+    document.getElementById('rezMenu').value = rez.menu || '';
+    document.getElementById('rezPrice').value = rez.price || '';
+    document.getElementById('rezPayment').value = rez.payment || 'Nakit';
+    document.getElementById('rezInvoice').value = rez.invoice || '';
+    document.getElementById('rezTaxOffice').value = rez.taxOffice || '';
+    document.getElementById('rezTaxNumber').value = rez.taxNumber || '';
+    document.getElementById('rezAddress').value = rez.address || '';
+    
+    editingRezId = id;
+    
+    const submitBtn = document.querySelector('#rezervForm button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Rezervasyonu Güncelle';
+        submitBtn.className = 'btn btn-success';
+        
+        let cancelBtn = document.getElementById('btnCancelRezEdit');
+        if (!cancelBtn) {
+            cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.id = 'btnCancelRezEdit';
+            cancelBtn.className = 'btn btn-outline';
+            cancelBtn.style.marginRight = '10px';
+            cancelBtn.innerHTML = '<i class="fa-solid fa-times"></i> Vazgeç';
+            cancelBtn.addEventListener('click', clearRezEditMode);
+            submitBtn.parentElement.insertBefore(cancelBtn, submitBtn);
+        }
+    }
+    
+    document.getElementById('rezervForm').scrollIntoView({ behavior: 'smooth' });
+};
+
+// ── RESERVATION LOGIC ──────────────────────────────────────────
 const renderReservations = () => {
     const body = document.getElementById('rezTableBody');
     const filter = document.getElementById('filterRezStatus').value;
@@ -1510,7 +1599,7 @@ const renderReservations = () => {
 
         tr.innerHTML = `
             <td>
-                <input type="checkbox" ${r.completed ? 'checked' : ''} onchange="toggleRezStatus('${r.id}', this.checked)" title="Tamamlandı olarak işaretle">
+                <input type="checkbox" ${r.completed ? 'checked disabled' : ''} onchange="toggleRezStatus('${r.id}', this.checked)" title="Tamamlandı olarak işaretle">
             </td>
             <td>
                 <div style="font-weight:600">${formatDate(r.date)}</div>
@@ -1535,9 +1624,21 @@ const renderReservations = () => {
                 <div><b>Fatura:</b> ${r.invoice || '-'}</div>
                 ${r.taxNumber ? `<div><b>V.N.:</b> ${r.taxNumber}</div>` : ''}
                 ${r.taxOffice ? `<div><b>V.D.:</b> ${r.taxOffice}</div>` : ''}
+                ${r.address ? `<div style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${r.address}"><b>Adres:</b> ${r.address}</div>` : ''}
             </td>
             <td>
-                <button class="btn-icon" onclick="deleteReservation('${r.id}')" title="Sil"><i class="fa-solid fa-trash"></i></button>
+                ${!r.completed ? `
+                    <button class="btn-icon" onclick="editReservation('${r.id}')" title="Düzenle" style="color:var(--primary); margin-right:5px;">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                ` : `
+                    <button class="btn-icon" disabled style="opacity:0.4; cursor:not-allowed; margin-right:5px;" title="Onaylanmış rezervasyon düzenlenemez">
+                        <i class="fa-solid fa-lock" style="color:var(--text-muted)"></i>
+                    </button>
+                `}
+                <button class="btn-icon" onclick="deleteReservation('${r.id}')" title="Sil" ${r.completed ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''}>
+                    <i class="fa-solid fa-trash"></i>
+                </button>
             </td>
         `;
         body.appendChild(tr);
@@ -1558,6 +1659,16 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
         const timeStart = document.getElementById('rezTimeStart').value;
         const timeEnd = document.getElementById('rezTimeEnd').value;
 
+        // If editing, perform safety check
+        if (editingRezId) {
+            const currentRez = allReservations.find(r => r.id === editingRezId);
+            if (currentRez && currentRez.completed) {
+                showToast('Onaylanmış rezervasyonlar güncellenemez!', 'error');
+                clearRezEditMode();
+                return;
+            }
+        }
+
         const data = {
             date: document.getElementById('rezDate').value,
             time: `${timeStart} - ${timeEnd}`,
@@ -1573,9 +1684,14 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
             taxOffice: taxOffice,
             taxNumber: taxNumber,
             address: address,
-            completed: false,
-            createdAt: new Date().toISOString()
+            updatedAt: new Date().toISOString()
         };
+
+        // If creating new, set completed to false and add createdAt
+        if (!editingRezId) {
+            data.completed = false;
+            data.createdAt = new Date().toISOString();
+        }
 
         // Müşteriyi otomatik kaydet/güncelle
         if (customerName) {
@@ -1593,14 +1709,20 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
             }
         }
 
-        await db.collection(RESERV_COLLECTION).add(data);
-        showToast('Rezervasyon kaydedildi.', 'success');
-        if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
-            const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + "\n🍽 Menü: " + (data.menu || '-') + (data.invoice ? "\n🧾 Fatura: " + data.invoice : "") + (data.taxNumber ? "\n🆔 V.N.: " + data.taxNumber : "") + (data.taxOffice ? "\n🏢 V.D.: " + data.taxOffice : "") + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
-            window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+        if (editingRezId) {
+            await db.collection(RESERV_COLLECTION).doc(editingRezId).update(data);
+            showToast('Rezervasyon başarıyla güncellendi ✓', 'success');
+            clearRezEditMode();
+        } else {
+            await db.collection(RESERV_COLLECTION).add(data);
+            showToast('Rezervasyon kaydedildi.', 'success');
+            if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
+                const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + "\n🍽 Menü: " + (data.menu || '-') + (data.invoice ? "\n🧾 Fatura: " + data.invoice : "") + (data.taxNumber ? "\n🆔 V.N.: " + data.taxNumber : "") + (data.taxOffice ? "\n🏢 V.D.: " + data.taxOffice : "") + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
+                window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+            }
+            e.target.reset();
+            document.getElementById('rezTotalCount').value = '0';
         }
-        e.target.reset();
-        document.getElementById('rezTotalCount').value = '0';
     } catch (err) {
         alert('HATA OLUŞTU: ' + err.message);
         console.error('Rezervasyon Hatası:', err);
@@ -1676,7 +1798,7 @@ window.toggleRezStatus = async (id, status) => {
                     const stokRef = db.collection(STOK_COLLECTION).doc();
                     batch.set(stokRef, {
                         date: rezDoc.date,
-                        product: ing.name,
+                        productName: ing.name,
                         type: 'OUT',
                         amount: reqAmount,
                         notes: `Rez. (${rezDoc.customer}) - Reçete`,
@@ -1688,7 +1810,7 @@ window.toggleRezStatus = async (id, status) => {
                 const stokRef = db.collection(STOK_COLLECTION).doc();
                 batch.set(stokRef, {
                     date: rezDoc.date,
-                    product: rezDoc.menu,
+                    productName: rezDoc.menu,
                     type: 'OUT',
                     amount: (rezDoc.totalCount || rezDoc.count),
                     notes: `Rez. (${rezDoc.customer})`,
@@ -1880,7 +2002,7 @@ document.getElementById('dailyUretimForm')?.addEventListener('submit', async (e)
             const stokRef = db.collection(STOK_COLLECTION).doc();
             batch.set(stokRef, {
                 date,
-                product: ing.name,
+                productName: ing.name,
                 type: 'OUT',
                 amount: requiredAmount,
                 notes: `${productName} üretimi için reçeteden düşüldü`,
