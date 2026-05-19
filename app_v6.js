@@ -2323,6 +2323,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let excelCount = 0;
             let salesAdded = 0;
 
+
+
             for (const file of files) {
                 const ext = file.name.split('.').pop().toLowerCase();
                 
@@ -2332,10 +2334,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const text = await extractTextFromPDF(file);
                         const rec = parseDataFromText(text, file.name);
                         if (rec) {
-                            await db.collection(RAPORLAR_COLLECTION).doc(rec.date).set(rec, { merge: true });
+                            await db.collection(COLLECTION).doc(rec.date).set(rec, { merge: true });
                             pdfCount++;
                         }
-                    } 
+                    }
                     // 2. EXCEL İŞLEME (Satışlar ve Reçete Düşümleri)
                     else if (ext === 'xlsx' || ext === 'xls') {
                         if (typeof XLSX === 'undefined') {
