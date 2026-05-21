@@ -2070,11 +2070,47 @@ const renderSales = () => {
         allRecipes.map(r => `<option value="${r.id}">${r.id}</option>`).join('');
     select.value = currentVal;
 
-    const sorted = [...allSales].sort((a,b) => b.date.localeCompare(a.date));
-    sorted.forEach(s => {
+    // Filtre değerleri
+    const urunFilter = (document.getElementById('filterSatisUrun')?.value || '').toLowerCase().trim();
+    const startDate  = document.getElementById('filterSatisStart')?.value || '1970-01-01';
+    const endDate    = document.getElementById('filterSatisEnd')?.value   || '2099-12-31';
+    const sortMode   = document.getElementById('filterSatisSort')?.value  || 'date_desc';
+
+    // Filtrele
+    let filtered = allSales.filter(s => {
+        if (urunFilter && !(s.productName || '').toLowerCase().includes(urunFilter)) return false;
+        if (s.date < startDate || s.date > endDate) return false;
+        return true;
+    });
+
+    // Sırala
+    filtered.sort((a, b) => {
+        if (sortMode === 'date_asc')  return a.date.localeCompare(b.date) || (a.productName||'').localeCompare(b.productName||'', 'tr');
+        if (sortMode === 'date_desc') return b.date.localeCompare(a.date) || (a.productName||'').localeCompare(b.productName||'', 'tr');
+        if (sortMode === 'name_asc')  return (a.productName||'').localeCompare(b.productName||'', 'tr') || a.date.localeCompare(b.date);
+        if (sortMode === 'name_desc') return (b.productName||'').localeCompare(a.productName||'', 'tr') || a.date.localeCompare(b.date);
+        return 0;
+    });
+
+    // Kayıt sayısı
+    const countEl = document.getElementById('satisRecordCount');
+    if (countEl) countEl.textContent = `${filtered.length} Kayıt`;
+
+    // Boş durum
+    const emptyEl = document.getElementById('satisEmptyState');
+    const tableEl = document.getElementById('salesTable');
+    if (filtered.length === 0) {
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (tableEl) tableEl.classList.add('hidden');
+        return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (tableEl) tableEl.classList.remove('hidden');
+
+    filtered.forEach(s => {
         let sourceText = 'Manuel';
         if (s.source === 'RESERV') sourceText = 'Rezervasyon';
-        if (s.source === 'EXCEL') sourceText = 'Excel Aktarımı';
+        if (s.source === 'EXCEL')  sourceText = 'Excel Aktarımı';
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -2089,6 +2125,7 @@ const renderSales = () => {
         body.appendChild(tr);
     });
 };
+
 
 const renderMamulStok = () => {
     const body = document.getElementById('mamulStokBody');
