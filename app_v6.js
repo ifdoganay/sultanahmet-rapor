@@ -8,8 +8,12 @@ const PERSONEL_RECORD_COL = 'sultanahmet_personel_hareket';
 const RESERV_COLLECTION = 'sultanahmet_rezervasyon';
 const RECIPE_COLLECTION = 'sultanahmet_receteler';
 const URETIM_COLLECTION = 'sultanahmet_uretim';
-const SALES_COLLECTION = 'sultanahmet_satis';
-const CUSTOMER_COLLECTION = 'sultanahmet_customers';
+const SALES_COLLECTION        = 'sultanahmet_satis';
+const CUSTOMER_COLLECTION     = 'sultanahmet_customers';
+const TEDARIKCI_COLLECTION    = 'sultanahmet_tedarikciler';
+const FATURA_COLLECTION       = 'sultanahmet_faturalar';
+const FATURA_ODEME_COLLECTION = 'sultanahmet_fatura_odemeler';
+const FIYAT_GECMIS_COLLECTION = 'sultanahmet_fiyat_gecmisi';
 
 let chartInstance = null;
 let allData = [];
@@ -22,7 +26,10 @@ let allRecipes = [];
 let allUretim = [];
 let allSales = [];
 let allCustomers = [];
-let allStokItems = []; // Added to fix export reference errors
+let allStokItems = [];
+let allTedarikciler = [];
+let allFaturalar    = [];
+let allFaturaOdemeler = [];
 let currentUser = null;
 let html5QrCode = null;
 
@@ -2536,3 +2543,403 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+// ══════════════════════════════════════════════════════════════════════════
+// TEDARİKÇİ & FATURA YÖNETİMİ MODÜLÜ
+// ══════════════════════════════════════════════════════════════════════════
+
+const initFaturaModule = () => {
+    // Tedarikçiler
+    db.collection(TEDARIKCI_COLLECTION).onSnapshot(snap => {
+        allTedarikciler = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderTedarikci();
+        populateTedarikciSelects();
+    });
+    // Faturalar
+    db.collection(FATURA_COLLECTION).orderBy('faturaDate','desc').onSnapshot(snap => {
+        allFaturalar = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderFaturalar();
+        renderFiyatUyarilari();
+    });
+    // Ödemeler
+    db.collection(FATURA_ODEME_COLLECTION).orderBy('date','desc').onSnapshot(snap => {
+        allFaturaOdemeler = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderFaturalar();
+        renderTedarikci();
+    });
+    // Ödeme tarihi default
+    const odemeT = document.getElementById('odemeTarih');
+    if (odemeT) odemeT.valueAsDate = new Date();
+};
+
+// initApp içine entegre et
+const _origInitApp = initApp;
+
+// ── Tedarikçi tablosu ──────────────────────────────────────────────────────
+const renderTedarikci = () => {
+    const body = document.getElementById('tedarikciBody');
+    if (!body) return;
+    body.innerHTML = '';
+
+    // Her tedarikçi için ödeme toplamını hesapla
+    const paidMap = {};
+    allFaturaOdemeler.forEach(o => {
+        const v = o.supplierVkn || '';
+        paidMap[v] = (paidMap[v] || 0) + (o.amount || 0);
+    });
+
+    let totalDebt = 0, activeCount = 0;
+    allTedarikciler.sort((a,b) => (b.currentBalance||0) - (a.currentBalance||0));
+    allTedarikciler.forEach(t => {
+        const paid   = paidMap[t.vkn] || 0;
+        const kalan  = (t.currentBalance || 0) - paid;
+        totalDebt += kalan > 0 ? kalan : 0;
+        if (kalan > 0) activeCount++;
+
+        const statusHtml = kalan <= 0
+            ? `<span class="badge" style="background:rgba(16,185,129,0.2);color:#10b981">Kapatıldı</span>`
+            : `<span class="badge" style="background:rgba(239,68,68,0.2);color:#ef4444">Açık Borç</span>`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:700;text-align:left">${t.name || t.id}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">${t.vkn || '-'}</td>
+            <td style="font-size:0.8rem">${[t.tel, t.email].filter(Boolean).join(' | ') || '-'}</td>
+            <td style="font-size:0.75rem;color:var(--text-muted)">${t.iban ? t.iban.replace(/(.{4})/g,'$1 ').trim() : '-'}</td>
+            <td style="text-align:right;color:var(--danger)">${formatCurrency(t.currentBalance)} TL</td>
+            <td style="text-align:right;color:var(--success)">${formatCurrency(paid)} TL</td>
+            <td class="toplam-col" style="text-align:right;font-weight:800;color:${kalan>0?'var(--danger)':'var(--success)'}">${formatCurrency(kalan)} TL</td>
+            <td>${statusHtml}</td>
+        `;
+        body.appendChild(tr);
+    });
+
+    // KPI güncelle
+    const el = id => document.getElementById(id);
+    if (el('kpiFaturaTedarikci'))  el('kpiFaturaTedarikci').textContent  = allTedarikciler.length;
+    if (el('kpiFaturaBorcToplam')) el('kpiFaturaBorcToplam').textContent = formatCurrency(totalDebt) + ' TL';
+    const acikFaturaSayisi = allFaturalar.filter(f => f.status !== 'ODENDI').length;
+    if (el('kpiFaturaAcik')) el('kpiFaturaAcik').textContent = acikFaturaSayisi;
+};
+
+// ── Fatura listesi ─────────────────────────────────────────────────────────
+window.renderFaturalar = () => {
+    const body      = document.getElementById('faturaListeBody');
+    const emptyEl   = document.getElementById('faturaEmptyState');
+    const tableEl   = document.getElementById('faturaListeTable');
+    const countEl   = document.getElementById('faturaRecordCount');
+    if (!body) return;
+
+    const filterVkn    = document.getElementById('filterFaturaTedarikci')?.value || '';
+    const filterStatus = document.getElementById('filterFaturaStatus')?.value    || '';
+    const startDate    = document.getElementById('filterFaturaStart')?.value     || '1970-01-01';
+    const endDate      = document.getElementById('filterFaturaEnd')?.value       || '2099-12-31';
+
+    // Her fatura için ödenen tutarı hesapla
+    const paidByFatura = {};
+    allFaturaOdemeler.forEach(o => {
+        const fid = o.faturaId || '';
+        paidByFatura[fid] = (paidByFatura[fid] || 0) + (o.amount || 0);
+    });
+
+    let filtered = allFaturalar.filter(f => {
+        if (filterVkn    && f.supplierVkn !== filterVkn) return false;
+        if (filterStatus && f.status      !== filterStatus) return false;
+        if ((f.faturaDate||'') < startDate || (f.faturaDate||'') > endDate) return false;
+        return true;
+    });
+
+    body.innerHTML = '';
+    if (countEl) countEl.textContent = `${filtered.length} Fatura`;
+
+    if (filtered.length === 0) {
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (tableEl) tableEl.classList.add('hidden');
+        return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (tableEl) tableEl.classList.remove('hidden');
+
+    filtered.forEach(f => {
+        const paid  = paidByFatura[f.id] || 0;
+        const kalan = (f.totalAmount || 0) - paid;
+        const liveStatus = kalan <= 0 ? 'ODENDI' : (paid > 0 ? 'KISMI' : 'ODENMEDI');
+
+        const statusLabels = { ODENMEDI: ['Ödenmedi','#ef4444'], KISMI: ['Kısmi','#f59e0b'], ODENDI: ['Ödendi','#10b981'] };
+        const [sLabel, sColor] = statusLabels[liveStatus] || ['?','gray'];
+        const alertBadge = (f.priceAlertCount > 0)
+            ? `<span style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:0.7rem;padding:2px 6px;border-radius:8px;margin-left:4px"><i class="fa-solid fa-triangle-exclamation"></i> ${f.priceAlertCount} uyarı</span>`
+            : '';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDate(f.faturaDate)}</td>
+            <td style="font-size:0.8rem;font-weight:600">${f.faturaNo || '-'}${alertBadge}</td>
+            <td style="font-weight:700;text-align:left">${f.supplierName || '-'}</td>
+            <td style="text-align:right">${formatCurrency(f.totalAmount)} TL</td>
+            <td style="text-align:right;color:var(--success)">${formatCurrency(paid)} TL</td>
+            <td class="toplam-col" style="text-align:right;font-weight:700;color:${kalan>0?'var(--danger)':'var(--success)'}">${formatCurrency(kalan)} TL</td>
+            <td><span class="badge" style="background:${sColor}22;color:${sColor}">${sLabel}</span></td>
+            <td>
+                <button class="btn-icon" onclick="showFaturaDetay('${f.id}')" title="Detay">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+            </td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+// ── Fiyat uyarıları paneli ─────────────────────────────────────────────────
+const renderFiyatUyarilari = () => {
+    const panel  = document.getElementById('fiyatUyariPanel');
+    const cont   = document.getElementById('fiyatUyariBody');
+    const kpiEl  = document.getElementById('kpiFiyatUyari');
+    const cntEl  = document.getElementById('fiyatUyariCount');
+    if (!panel || !cont) return;
+
+    const allAlerts = [];
+    allFaturalar.forEach(f => {
+        if (f.priceAlerts && Array.isArray(f.priceAlerts)) {
+            f.priceAlerts.forEach(a => {
+                allAlerts.push({ ...a, faturaNo: f.faturaNo, faturaDate: f.faturaDate, supplierName: f.supplierName });
+            });
+        }
+    });
+
+    if (kpiEl) kpiEl.textContent = allAlerts.length;
+    if (cntEl) cntEl.textContent = `${allAlerts.length} uyarı`;
+
+    if (allAlerts.length === 0) { panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+
+    cont.innerHTML = '';
+    allAlerts.forEach(a => {
+        const pct     = a.changePct || 0;
+        const isUp    = pct > 0;
+        const arrow   = isUp ? '↑' : '↓';
+        const color   = isUp ? '#ef4444' : '#10b981';
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap';
+        div.innerHTML = `
+            <div style="flex:1;min-width:200px">
+                <span style="font-weight:700">${a.productName}</span>
+                <span style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem">${a.supplierName}</span>
+            </div>
+            <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                <span style="color:var(--text-muted);font-size:0.85rem">${formatCurrency(a.oldPrice)} TL/${a.unit}</span>
+                <span style="font-size:1rem">→</span>
+                <span style="font-weight:800;color:${color};font-size:0.95rem">${formatCurrency(a.newPrice)} TL/${a.unit}</span>
+                <span style="background:${color}22;color:${color};padding:2px 8px;border-radius:8px;font-size:0.8rem;font-weight:700">${arrow} ${Math.abs(pct).toFixed(1)}%</span>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-muted)">${a.faturaNo} | ${formatDate(a.faturaDate)}</div>
+        `;
+        cont.appendChild(div);
+    });
+};
+
+// ── Tedarikçi dropdown populate ────────────────────────────────────────────
+const populateTedarikciSelects = () => {
+    const filterSel = document.getElementById('filterFaturaTedarikci');
+    const odemeSel  = document.getElementById('odemeTedarikciSelect');
+
+    if (filterSel) {
+        const cur = filterSel.value;
+        filterSel.innerHTML = '<option value="">Tüm Tedarikçiler</option>' +
+            allTedarikciler.map(t => `<option value="${t.vkn}">${t.name || t.id}</option>`).join('');
+        filterSel.value = cur;
+    }
+    if (odemeSel) {
+        const cur = odemeSel.value;
+        odemeSel.innerHTML = '<option value="">Tedarikçi Seçin...</option>' +
+            allTedarikciler.map(t => `<option value="${t.vkn}">${t.name || t.id}</option>`).join('');
+        odemeSel.value = cur;
+    }
+};
+
+// ── Ödeme formu: tedarikçi seçilince faturalarını yükle ───────────────────
+window.loadOdemeFaturalar = () => {
+    const vkn = document.getElementById('odemeTedarikciSelect')?.value || '';
+    const sel = document.getElementById('odemeFaturaSelect');
+    if (!sel) return;
+
+    // O tedarikçinin ödenmemiş / kısmi faturalarını listele
+    const paidByFatura = {};
+    allFaturaOdemeler.forEach(o => {
+        paidByFatura[o.faturaId || ''] = (paidByFatura[o.faturaId || ''] || 0) + (o.amount || 0);
+    });
+
+    const faturalar = allFaturalar.filter(f => {
+        if (vkn && f.supplierVkn !== vkn) return false;
+        const paid  = paidByFatura[f.id] || 0;
+        const kalan = (f.totalAmount || 0) - paid;
+        return kalan > 0;
+    });
+
+    sel.innerHTML = '<option value="">Fatura Seçin...</option>' +
+        faturalar.map(f => {
+            const paid  = paidByFatura[f.id] || 0;
+            const kalan = (f.totalAmount||0) - paid;
+            return `<option value="${f.id}" data-kalan="${kalan}">${f.faturaNo} — ${formatCurrency(f.totalAmount)} TL (Kalan: ${formatCurrency(kalan)} TL)</option>`;
+        }).join('');
+
+    // Fatura seçilince kalan tutarı otomatik doldur
+    sel.onchange = () => {
+        const opt = sel.options[sel.selectedIndex];
+        const kalan = opt ? (parseFloat(opt.getAttribute('data-kalan')) || 0) : 0;
+        const tutar = document.getElementById('odemeTutar');
+        if (tutar && kalan > 0) tutar.value = kalan.toFixed(2);
+    };
+};
+
+// ── Ödeme kaydet ────────────────────────────────────────────────────────────
+window.saveOdeme = async (e) => {
+    e.preventDefault();
+    const vkn      = document.getElementById('odemeTedarikciSelect')?.value || '';
+    const faturaId = document.getElementById('odemeFaturaSelect')?.value    || '';
+    const tutar    = parseFloat(document.getElementById('odemeTutar')?.value)  || 0;
+    const tarih    = document.getElementById('odemeTarih')?.value             || '';
+    const not      = document.getElementById('odemeNot')?.value               || '';
+
+    if (!vkn || !faturaId || tutar <= 0 || !tarih) {
+        showToast('Tüm alanları doldurun!', 'error'); return;
+    }
+
+    const fatura = allFaturalar.find(f => f.id === faturaId);
+    if (!fatura) { showToast('Fatura bulunamadı!', 'error'); return; }
+
+    try {
+        const now = new Date().toISOString();
+        // Ödeme kaydı
+        await db.collection(FATURA_ODEME_COLLECTION).add({
+            faturaId,
+            faturaNo:    fatura.faturaNo || '',
+            supplierVkn: vkn,
+            supplierName: fatura.supplierName || '',
+            amount:  tutar,
+            date:    tarih,
+            note:    not,
+            createdAt: now
+        });
+
+        // Tedarikçi bakiyesini güncelle
+        const ted = allTedarikciler.find(t => t.vkn === vkn);
+        if (ted) {
+            const paidTotal = allFaturaOdemeler
+                .filter(o => o.supplierVkn === vkn)
+                .reduce((s, o) => s + (o.amount || 0), 0) + tutar;
+            await db.collection(TEDARIKCI_COLLECTION).doc(ted.id).update({
+                paidAmount: paidTotal,
+                updatedAt:  now
+            });
+        }
+
+        // Fatura status güncelle
+        const allPaid = allFaturaOdemeler
+            .filter(o => o.faturaId === faturaId)
+            .reduce((s, o) => s + (o.amount || 0), 0) + tutar;
+        const kalan = (fatura.totalAmount || 0) - allPaid;
+        const newStatus = kalan <= 0 ? 'ODENDI' : (allPaid > 0 ? 'KISMI' : 'ODENMEDI');
+        await db.collection(FATURA_COLLECTION).doc(faturaId).update({
+            paidAmount: allPaid,
+            status: newStatus,
+            updatedAt: now
+        });
+
+        showToast(`✅ ${formatCurrency(tutar)} TL ödeme kaydedildi.`);
+        document.getElementById('odemeForm').reset();
+        document.getElementById('odemeTarih').valueAsDate = new Date();
+        document.getElementById('odemeFaturaSelect').innerHTML = '<option value="">Önce tedarikçi seçin...</option>';
+    } catch (err) {
+        console.error(err);
+        showToast('Ödeme kayıt hatası!', 'error');
+    }
+};
+
+// ── Fatura detay modal ─────────────────────────────────────────────────────
+window.showFaturaDetay = (faturaId) => {
+    const f = allFaturalar.find(x => x.id === faturaId);
+    if (!f) return;
+
+    const paidTotal = allFaturaOdemeler
+        .filter(o => o.faturaId === faturaId)
+        .reduce((s, o) => s + (o.amount || 0), 0);
+    const kalan = (f.totalAmount || 0) - paidTotal;
+
+    const itemsHtml = (f.items || []).map((item, i) => `
+        <tr>
+            <td>${i+1}</td>
+            <td style="text-align:left;font-weight:600">${item.productName}</td>
+            <td>${item.qty} ${item.unit}</td>
+            <td>${formatCurrency(item.unitPrice)} TL</td>
+            <td>%${item.kdvRate || 0}</td>
+            <td class="toplam-col">${formatCurrency(item.lineTotal)} TL</td>
+        </tr>
+    `).join('');
+
+    const alertsHtml = (f.priceAlerts || []).map(a => `
+        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.6rem 1rem;margin-bottom:0.5rem">
+            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i>
+            <strong>${a.productName}</strong>: ${formatCurrency(a.oldPrice)} → <strong style="color:#ef4444">${formatCurrency(a.newPrice)} TL/${a.unit}</strong>
+            <span style="color:#ef4444;margin-left:0.5rem">(${a.changePct > 0 ? '+' : ''}${a.changePct}%)</span>
+        </div>
+    `).join('');
+
+    const odemelerHtml = allFaturaOdemeler
+        .filter(o => o.faturaId === faturaId)
+        .map(o => `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+            <span>${formatDate(o.date)} — ${o.note || 'Ödeme'}</span>
+            <span style="color:var(--success);font-weight:700">${formatCurrency(o.amount)} TL</span>
+        </div>`).join('');
+
+    document.getElementById('faturaDetayContent').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+            <div>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin:0">Tedarikçi</p>
+                <p style="font-weight:700;margin:0">${f.supplierName}</p>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0">${f.supplierVkn}</p>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0">${f.iban || ''}</p>
+            </div>
+            <div style="text-align:right">
+                <p style="color:var(--text-muted);font-size:0.8rem;margin:0">Fatura No: <strong>${f.faturaNo}</strong></p>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0">Tarih: ${formatDate(f.faturaDate)}</p>
+                <p style="font-size:1.2rem;font-weight:800;color:var(--primary);margin-top:0.5rem">${formatCurrency(f.totalAmount)} TL</p>
+                <p style="font-size:0.85rem;color:${kalan>0?'var(--danger)':'var(--success)'}">
+                    ${kalan > 0 ? `Kalan: ${formatCurrency(kalan)} TL` : '✅ Tamamen Ödendi'}
+                </p>
+            </div>
+        </div>
+
+        ${alertsHtml ? `<div style="margin-bottom:1rem">${alertsHtml}</div>` : ''}
+
+        <div class="table-responsive" style="margin-bottom:1rem">
+            <table>
+                <thead><tr><th>#</th><th>Ürün</th><th>Miktar</th><th>Birim Fiyat</th><th>KDV</th><th class="toplam-col">Toplam</th></tr></thead>
+                <tbody>${itemsHtml}</tbody>
+            </table>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;background:rgba(0,0,0,0.2);padding:0.75rem;border-radius:8px;margin-bottom:1rem">
+            <span style="color:var(--text-muted)">Net Tutar:</span><span style="text-align:right">${formatCurrency(f.netAmount)} TL</span>
+            <span style="color:var(--text-muted)">KDV:</span><span style="text-align:right">${formatCurrency(f.kdvAmount)} TL</span>
+            <span style="font-weight:700">Genel Toplam:</span><span style="text-align:right;font-weight:700">${formatCurrency(f.totalAmount)} TL</span>
+            <span style="color:var(--success)">Ödenen:</span><span style="text-align:right;color:var(--success)">${formatCurrency(paidTotal)} TL</span>
+            <span style="font-weight:800;color:${kalan>0?'var(--danger)':'var(--success)'}">Kalan Borç:</span><span style="text-align:right;font-weight:800;color:${kalan>0?'var(--danger)':'var(--success)'}">${formatCurrency(kalan)} TL</span>
+        </div>
+
+        ${odemelerHtml ? `<div><h4 style="margin-bottom:0.5rem">Ödeme Geçmişi</h4>${odemelerHtml}</div>` : '<p style="color:var(--text-muted);font-size:0.85rem">Henüz ödeme kaydı yok.</p>'}
+    `;
+    toggleModal('faturaDetayModal', true);
+};
+
+// ── initApp'e entegre et ───────────────────────────────────────────────────
+// Accordion toggle ile modülü başlat (lazy loading)
+const _faturaToggleBtn = document.getElementById('toggleFatura');
+if (_faturaToggleBtn) {
+    let _faturaModuleInited = false;
+    _faturaToggleBtn.addEventListener('click', () => {
+        if (!_faturaModuleInited && currentUser) {
+            _faturaModuleInited = true;
+            initFaturaModule();
+        }
+    });
+}

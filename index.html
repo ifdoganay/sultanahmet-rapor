@@ -906,6 +906,156 @@
         </div><!-- /satisContent -->
     </div><!-- /accordion-panel -->
 
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SEKME 7: TEDARİKÇİ & FATURA YÖNETİMİ -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="accordion-panel">
+        <button class="accordion-toggle" id="toggleFatura" onclick="toggleAccordion('faturaContent', this)">
+            <span><i class="fa-solid fa-file-invoice-dollar"></i> Tedarikçi & Fatura Yönetimi</span>
+            <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+        </button>
+        <div class="accordion-content" id="faturaContent">
+
+            <!-- KPI KARTLARI -->
+            <div class="kpi-grid" style="margin-bottom:1.5rem">
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon"><i class="fa-solid fa-building"></i></div>
+                    <div class="kpi-info"><h3>TEDARİKÇİ SAYISI</h3><p id="kpiFaturaTedarikci">0</p></div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon amber"><i class="fa-solid fa-file-invoice"></i></div>
+                    <div class="kpi-info"><h3>AÇIK FATURA</h3><p id="kpiFaturaAcik">0</p></div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon kredit"><i class="fa-solid fa-turkish-lira-sign"></i></div>
+                    <div class="kpi-info"><h3>TOPLAM BORÇ</h3><p id="kpiFaturaBorcToplam">0,00 TL</p></div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon" style="background:rgba(239,68,68,0.15);color:#ef4444"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="kpi-info"><h3>FİYAT UYARISI</h3><p id="kpiFiyatUyari">0</p></div>
+                </div>
+            </div>
+
+            <!-- FİYAT DEĞİŞİM UYARILARI -->
+            <div id="fiyatUyariPanel" class="hidden" style="margin-bottom:1.5rem">
+                <section class="glass-panel" style="border:1px solid rgba(239,68,68,0.4); background:rgba(239,68,68,0.05)">
+                    <div class="section-header">
+                        <h2 style="color:#ef4444"><i class="fa-solid fa-triangle-exclamation"></i> Fiyat Değişim Uyarıları</h2>
+                        <span id="fiyatUyariCount" class="badge" style="background:rgba(239,68,68,0.2);color:#ef4444">0 uyarı</span>
+                    </div>
+                    <div id="fiyatUyariBody"></div>
+                </section>
+            </div>
+
+            <!-- TEDARİKÇİ LİSTESİ -->
+            <section class="glass-panel" style="margin-bottom:1.5rem">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-building"></i> Tedarikçiler & Bakiyeler</h2>
+                </div>
+                <div class="table-responsive">
+                    <table id="tedarikciTable">
+                        <thead>
+                            <tr>
+                                <th>Tedarikçi Adı</th>
+                                <th>VKN</th>
+                                <th>Tel / E-posta</th>
+                                <th>IBAN</th>
+                                <th style="text-align:right">Toplam Borç</th>
+                                <th style="text-align:right">Ödenen</th>
+                                <th class="toplam-col" style="text-align:right">Kalan Borç</th>
+                                <th>Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tedarikciBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- FATURA LİSTESİ -->
+            <section class="glass-panel" style="margin-bottom:1.5rem">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-list-ul"></i> Faturalar</h2>
+                    <div class="header-actions" style="margin:0;gap:0.5rem;flex-wrap:wrap">
+                        <select id="filterFaturaTedarikci" onchange="renderFaturalar()" style="background:rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:0.35rem 0.7rem;border-radius:7px;color:white;font-size:0.75rem">
+                            <option value="">Tüm Tedarikçiler</option>
+                        </select>
+                        <select id="filterFaturaStatus" onchange="renderFaturalar()" style="background:rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:0.35rem 0.7rem;border-radius:7px;color:white;font-size:0.75rem">
+                            <option value="">Tüm Durumlar</option>
+                            <option value="ODENMEDI">Ödenmedi</option>
+                            <option value="KISMI">Kısmi Ödendi</option>
+                            <option value="ODENDI">Ödendi</option>
+                        </select>
+                        <input type="date" id="filterFaturaStart" onchange="renderFaturalar()" style="background:rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:0.35rem 0.7rem;border-radius:7px;color:white;font-size:0.75rem">
+                        <input type="date" id="filterFaturaEnd" onchange="renderFaturalar()" style="background:rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:0.35rem 0.7rem;border-radius:7px;color:white;font-size:0.75rem">
+                        <span id="faturaRecordCount" class="badge">0 Fatura</span>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="faturaListeTable">
+                        <thead>
+                            <tr>
+                                <th>Tarih</th>
+                                <th>Fatura No</th>
+                                <th>Tedarikçi</th>
+                                <th style="text-align:right">Fatura Tutarı</th>
+                                <th style="text-align:right">Ödenen</th>
+                                <th class="toplam-col" style="text-align:right">Kalan</th>
+                                <th>Durum</th>
+                                <th>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="faturaListeBody"></tbody>
+                    </table>
+                    <div id="faturaEmptyState" class="empty-state hidden">
+                        <i class="fa-solid fa-file-invoice"></i>
+                        <p>Fatura bulunamadı.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ÖDEME KAYIT FORMU (Admin) -->
+            <section class="glass-panel admin-only">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-money-bill-transfer"></i> Ödeme Kaydet</h2>
+                </div>
+                <form id="odemeForm" onsubmit="saveOdeme(event)">
+                    <div class="form-row-4">
+                        <div class="form-group">
+                            <label>Tedarikçi Seç</label>
+                            <select id="odemeTedarikciSelect" onchange="loadOdemeFaturalar()" required style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);padding:0.6rem;border-radius:7px;color:white">
+                                <option value="">Tedarikçi Seçin...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fatura Seç</label>
+                            <select id="odemeFaturaSelect" required style="background:rgba(15,23,42,0.6);border:1px solid var(--border-color);padding:0.6rem;border-radius:7px;color:white">
+                                <option value="">Önce tedarikçi seçin...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ödeme Tutarı (TL)</label>
+                            <input type="number" step="0.01" id="odemeTutar" required placeholder="0,00">
+                        </div>
+                        <div class="form-group">
+                            <label>Ödeme Tarihi</label>
+                            <input type="date" id="odemeTarih" required>
+                        </div>
+                    </div>
+                    <div class="form-row-3" style="margin-top:0.75rem">
+                        <div class="form-group" style="grid-column:span 2">
+                            <label>Not (Banka / Açıklama)</label>
+                            <input type="text" id="odemeNot" placeholder="Garanti Bankası, havale vb.">
+                        </div>
+                        <div class="form-group form-submit-col" style="display:flex;justify-content:flex-end;align-items:flex-end">
+                            <button type="submit" class="btn btn-success"><i class="fa-solid fa-check"></i> Ödemeyi Kaydet</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+        </div><!-- /faturaContent -->
+    </div><!-- /accordion-panel -->
+
 </div><!-- /app-container -->
 
 <!-- LOGIN OVERLAY -->
@@ -1029,6 +1179,17 @@
                 <button type="submit" class="btn btn-primary">Güncelle</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- FATURA DETAY MODAL -->
+<div id="faturaDetayModal" class="modal hidden">
+    <div class="modal-content glass-panel" style="max-width:700px">
+        <div class="section-header">
+            <h2><i class="fa-solid fa-file-invoice"></i> Fatura Detayı</h2>
+            <button class="btn-icon" onclick="toggleModal('faturaDetayModal',false)"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div id="faturaDetayContent"></div>
     </div>
 </div>
 
