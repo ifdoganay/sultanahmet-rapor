@@ -147,51 +147,127 @@ document.getElementById('btnSettings').addEventListener('click', async () => {
 
 const renderUserManagement = async () => {
     const body = document.getElementById('userManagementBody');
-    body.innerHTML = '<tr><td colspan="6">Yükleniyor...</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:1rem;color:var(--text-muted)"><i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...</td></tr>';
     
     const snap = await db.collection(USER_COLLECTION).get();
     body.innerHTML = '';
     
+    if (snap.empty) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">Henüz kullanıcı yok.</td></tr>';
+        return;
+    }
+
     snap.docs.forEach(doc => {
         const u = doc.data();
-        if (u.role === 'admin') return; // Admini düzenleme
+        if (u.role === 'admin') return; // Admin satırını gizle
 
+        const p = u.perms || {};
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${doc.id}</td>
-            <td>${u.role}</td>
-            <td><input type="text" placeholder="Yeni şifre" id="pass_${doc.id}" style="width:100px; padding:4px"></td>
-            <td><input type="checkbox" id="perm_mali_${doc.id}" ${u.perms.mali ? 'checked' : ''}></td>
-            <td><input type="checkbox" id="perm_stok_${doc.id}" ${u.perms.stok ? 'checked' : ''}></td>
-            <td><input type="checkbox" id="perm_personel_${doc.id}" ${u.perms.personel ? 'checked' : ''}></td>
-            <td><input type="checkbox" id="perm_rez_${doc.id}" ${u.perms.rezervasyon ? 'checked' : ''}></td>
-            <td><button class="btn btn-success" onclick="updateUser('${doc.id}')">Güncelle</button></td>
+            <td style="font-weight:700">${doc.id}</td>
+            <td><input type="text" placeholder="Yeni şifre" id="pass_${doc.id}" style="width:110px; padding:5px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:white; font-size:0.8rem;"></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_mali_${doc.id}"       ${p.mali        ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_stok_${doc.id}"       ${p.stok        ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_personel_${doc.id}"   ${p.personel    ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_rez_${doc.id}"        ${p.rezervasyon ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_uretim_${doc.id}"     ${p.uretim      ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_satis_${doc.id}"      ${p.satis       ? 'checked' : ''}></td>
+            <td style="display:flex;gap:0.4rem;align-items:center;">
+                <button class="btn btn-success btn-sm" style="padding:0.3rem 0.7rem; font-size:0.75rem;" onclick="updateUser('${doc.id}')">
+                    <i class="fa-solid fa-save"></i> Kaydet
+                </button>
+                <button class="btn btn-danger btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" onclick="deleteUser('${doc.id}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
         `;
         body.appendChild(tr);
     });
 };
 
+window.toggleAddUserForm = () => {
+    const panel = document.getElementById('addUserFormPanel');
+    const isHidden = panel.style.display === 'none' || panel.style.display === '';
+    panel.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+        document.getElementById('newUsername').focus();
+    }
+};
+
+window.createUser = async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('newUsername').value.trim().toLowerCase();
+    const password = document.getElementById('newUserPassword').value.trim();
+
+    if (!username || !password) { showToast('Kullanıcı adı ve şifre zorunlu!', 'error'); return; }
+    if (username === 'admin') { showToast('"admin" kullanıcı adı kullanılamaz!', 'error'); return; }
+
+    // Var mı kontrol et
+    try {
+        const existing = await db.collection(USER_COLLECTION).doc(username).get();
+        if (existing.exists) { showToast(`"${username}" zaten mevcut!`, 'error'); return; }
+    } catch(e) {}
+
+    const perms = {
+        mali:        document.getElementById('newPerm_mali').checked,
+        stok:        document.getElementById('newPerm_stok').checked,
+        personel:    document.getElementById('newPerm_personel').checked,
+        rezervasyon: document.getElementById('newPerm_rezervasyon').checked,
+        uretim:      document.getElementById('newPerm_uretim').checked,
+        satis:       document.getElementById('newPerm_satis').checked,
+    };
+
+    try {
+        await db.collection(USER_COLLECTION).doc(username).set({
+            role: 'viewer',
+            password,
+            perms,
+            createdAt: new Date().toISOString()
+        });
+        showToast(`✅ "${username}" başarıyla oluşturuldu.`);
+        document.getElementById('addUserForm').reset();
+        document.getElementById('addUserFormPanel').style.display = 'none';
+        renderUserManagement();
+    } catch (err) {
+        console.error(err);
+        showToast('Kullanıcı oluşturma hatası!', 'error');
+    }
+};
+
 window.updateUser = async (username) => {
-    const newPass = document.getElementById(`pass_${username}`).value;
-    const permMali = document.getElementById(`perm_mali_${username}`).checked;
-    const permStok = document.getElementById(`perm_stok_${username}`).checked;
+    const newPass    = document.getElementById(`pass_${username}`).value;
+    const permMali   = document.getElementById(`perm_mali_${username}`).checked;
+    const permStok   = document.getElementById(`perm_stok_${username}`).checked;
     const permPersonel = document.getElementById(`perm_personel_${username}`).checked;
-    const permRez = document.getElementById(`perm_rez_${username}`).checked;
+    const permRez    = document.getElementById(`perm_rez_${username}`).checked;
     const permUretim = document.getElementById(`perm_uretim_${username}`).checked;
+    const permSatis  = document.getElementById(`perm_satis_${username}`)?.checked || false;
 
     const updateData = {
-        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim }
+        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim, satis: permSatis }
     };
     if (newPass) updateData.password = newPass;
 
     try {
         await db.collection(USER_COLLECTION).doc(username).update(updateData);
-        showToast(`${username} güncellendi.`);
+        showToast(`✅ ${username} güncellendi.`);
         renderUserManagement();
     } catch (e) {
         showToast('Güncelleme hatası!', 'error');
     }
 };
+
+window.deleteUser = async (username) => {
+    if (!confirm(`"${username}" kullanıcısını silmek istediğinize emin misiniz?`)) return;
+    try {
+        await db.collection(USER_COLLECTION).doc(username).delete();
+        showToast(`🗑️ "${username}" silindi.`);
+        renderUserManagement();
+    } catch (e) {
+        showToast('Silme hatası!', 'error');
+    }
+};
+
 
 const initApp = () => {
     // Raporlar
