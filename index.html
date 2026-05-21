@@ -870,6 +870,18 @@
             <section class="glass-panel" style="margin-top:1.5rem">
                 <div class="section-header">
                     <h2><i class="fa-solid fa-history"></i> Satış Kayıtları</h2>
+                    <div class="header-actions" style="margin:0; gap:0.5rem; flex-wrap:wrap;">
+                        <input type="text" id="filterSatisUrun" placeholder="Ürün ara..." oninput="renderSales()" style="background:rgba(0,0,0,0.2); border:1px solid var(--border-color); padding:0.35rem 0.7rem; border-radius:7px; color:white; font-size:0.75rem; width:140px;">
+                        <input type="date" id="filterSatisStart" onchange="renderSales()" style="background:rgba(0,0,0,0.2); border:1px solid var(--border-color); padding:0.35rem 0.7rem; border-radius:7px; color:white; font-size:0.75rem;">
+                        <input type="date" id="filterSatisEnd" onchange="renderSales()" style="background:rgba(0,0,0,0.2); border:1px solid var(--border-color); padding:0.35rem 0.7rem; border-radius:7px; color:white; font-size:0.75rem;">
+                        <select id="filterSatisSort" onchange="renderSales()" style="background:rgba(0,0,0,0.2); border:1px solid var(--border-color); padding:0.35rem 0.7rem; border-radius:7px; color:white; font-size:0.75rem;">
+                            <option value="date_desc">Tarih ↓ (Yeni→Eski)</option>
+                            <option value="date_asc">Tarih ↑ (Eski→Yeni)</option>
+                            <option value="name_asc">Ürün A→Z</option>
+                            <option value="name_desc">Ürün Z→A</option>
+                        </select>
+                        <span id="satisRecordCount" class="badge">0 Kayıt</span>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table id="salesTable">
@@ -884,6 +896,10 @@
                         </thead>
                         <tbody id="salesTableBody"></tbody>
                     </table>
+                    <div id="satisEmptyState" class="empty-state hidden">
+                        <i class="fa-solid fa-cart-arrow-down"></i>
+                        <p>Filtreyle eşleşen satış kaydı yok.</p>
+                    </div>
                 </div>
             </section>
 
