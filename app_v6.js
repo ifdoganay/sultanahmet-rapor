@@ -459,6 +459,31 @@ window.deleteRecord = async (id) => {
     }
 };
 
+window.editRecord = (id) => {
+    const item = allData.find(r => r.id === id);
+    if (!item) return;
+
+    document.getElementById('inputDate').value = item.date || '';
+    document.getElementById('inputRobotEft').value = item.robotEft || '';
+    document.getElementById('inputMuhasebeEft').value = item.muhEft || '';
+    document.getElementById('inputKasaNakit').value = item.kasaNakit || '';
+    document.getElementById('inputRobotNakit').value = item.robotNakit || '';
+    document.getElementById('inputMuhasebeNakit').value = item.muhNakit || '';
+    document.getElementById('inputRobotKredi').value = item.robotKredi || '';
+    document.getElementById('inputMuhasebeKredi').value = item.muhKredi || '';
+    document.getElementById('inputYemek').value = item.yemek || '';
+    document.getElementById('inputKasaYemek').value = item.kasaYemek || '';
+    document.getElementById('inputCari').value = item.cari || '';
+
+    // Scroll to form
+    document.getElementById('dataForm').scrollIntoView({ behavior: 'smooth' });
+    
+    // Recalculate read-only calculated fields
+    recalcForm();
+    
+    showToast('Veriler düzenleme formuna yüklendi. Değişiklikleri yapıp "Kaydet"e basın.');
+};
+
 window.deleteStokRecord = async (id) => {
     if (!confirm('Bu stok kaydını silmek istediğinize emin misiniz?')) return;
     try {
@@ -538,13 +563,30 @@ const updateTable = (data) => {
         const rEft = item.robotEft||0, mEft = item.muhEft||0;
         const kNak = item.kasaNakit||0, rNak = item.robotNakit||0, mNak = item.muhNakit||0;
         const rKre = item.robotKredi||0, mKre = item.muhKredi||0;
-        const eftFark      = rEft - mEft;
+        const rYem = item.yemek||0, kYem = item.kasaYemek||0;
+
+        const eftFark      = mEft - rEft;
         const posRobFark   = kNak - rNak;
-        const kreFark      = rKre - mKre;
-        const robTop       = rEft + rNak + rKre + (item.yemek||0) + (item.cari||0);
-        const muhTop       = mEft + mNak + mKre;
+        const kreFark      = mKre - rKre;
+        const yemekFark    = kYem - rYem;
+
+        const robTop       = rEft + rNak + rKre + rYem + (item.cari||0);
+        const muhTop       = mEft + mNak + mKre + kYem;
         const kasRobFark   = kNak - rNak;
-        const nakFarkTop   = eftFark + posRobFark + kreFark;
+        const nakFarkTop   = eftFark + posRobFark + kreFark + yemekFark;
+
+        const isAdmin = currentUser && currentUser.role === 'admin';
+        let actionHtml = '-';
+        if (isAdmin) {
+            actionHtml = `
+                <button class="btn-icon" onclick="editRecord('${item.id}')" title="Düzenle" style="color:var(--primary); margin-right:8px;">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button class="btn-icon" onclick="deleteRecord('${item.id}')" title="Sil" style="color:var(--danger);">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            `;
+        }
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -559,17 +601,15 @@ const updateTable = (data) => {
             <td class="currency">${formatCurrency(rKre)}</td>
             <td class="currency">${formatCurrency(mKre)}</td>
             <td class="currency fark-col" style="${colorize(kreFark)}">${formatCurrency(kreFark)}</td>
+            <td class="currency">${formatCurrency(rYem)}</td>
+            <td class="currency">${formatCurrency(kYem)}</td>
+            <td class="currency fark-col" style="${colorize(yemekFark)}">${formatCurrency(yemekFark)}</td>
             <td class="currency toplam-col">${formatCurrency(robTop)}</td>
             <td class="currency toplam-col">${formatCurrency(muhTop)}</td>
             <td class="currency fark-col" style="${colorize(kasRobFark)}">${formatCurrency(kasRobFark)}</td>
             <td class="currency toplam-col" style="${colorize(nakFarkTop)};font-weight:700">${formatCurrency(nakFarkTop)}</td>
-            <td class="currency">${formatCurrency(item.yemek)}</td>
             <td class="currency">${formatCurrency(item.cari)}</td>
-            <td>
-                <button class="btn-icon" onclick="deleteRecord('${item.id}')" title="Sil">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </td>
+            <td style="white-space:nowrap; text-align:center;">${actionHtml}</td>
         `;
         body.appendChild(tr);
     });
@@ -699,10 +739,13 @@ const renderStokStatus = (status) => {
         if (isAdmin) {
             actionHtml = `
                 <td class="admin-only">
-                    <button class="btn-icon" onclick="toggleProductStatus('${slug}', ${s.isActive})" title="${s.isActive ? 'Pasife Al' : 'Aktife Al'}">
+                    <button class="btn-icon" onclick="editProductName('${s.name}')" title="Ürünü Düzenle" style="color:var(--primary); margin-right:5px;">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon" onclick="toggleProductStatus('${slug}', ${s.isActive})" title="${s.isActive ? 'Pasife Al' : 'Aktife Al'}" style="margin-right:5px;">
                         <i class="fa-solid ${s.isActive ? 'fa-eye-slash' : 'fa-eye'}"></i>
                     </button>
-                    <button class="btn-icon" onclick="deleteProductMaster('${slug}', '${s.name}')" title="Ürünü Tamamen Sil">
+                    <button class="btn-icon" onclick="deleteProductMaster('${slug}', '${s.name}')" title="Ürünü Tamamen Sil" style="color:var(--danger);">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
                 </td>
@@ -814,7 +857,7 @@ const updateChart = (data) => {
             labels: data.map(d => formatDate(d.date).substring(0, 5)),
             datasets: [
                 { label: 'ROBOTPOS TOPLAM', data: data.map(d => (d.robotEft||0)+(d.robotNakit||0)+(d.robotKredi||0)+(d.yemek||0)+(d.cari||0)), borderColor: 'rgba(59,130,246,1)', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
-                { label: 'MUHASEBE TOPLAM', data: data.map(d => (d.muhEft||0)+(d.muhNakit||0)+(d.muhKredi||0)), borderColor: 'rgba(16,185,129,1)', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, fill: true }
+                { label: 'MUHASEBE TOPLAM', data: data.map(d => (d.muhEft||0)+(d.muhNakit||0)+(d.muhKredi||0)+(d.kasaYemek||0)), borderColor: 'rgba(16,185,129,1)', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, fill: true }
             ]
         },
         options: {
@@ -840,17 +883,20 @@ const recalcForm = () => {
     const rEft = g('inputRobotEft'), mEft = g('inputMuhasebeEft');
     const kNak = g('inputKasaNakit'), rNak = g('inputRobotNakit'), mNak = g('inputMuhasebeNakit');
     const rKre = g('inputRobotKredi'), mKre = g('inputMuhasebeKredi');
-    s('inputEftFark',             rEft - mEft);
+    const rYem = g('inputYemek'), kYem = g('inputKasaYemek');
+
+    s('inputEftFark',             mEft - rEft);
     s('inputPosRobotNakitFark',   kNak - rNak);
-    s('inputKrediFark',           rKre - mKre);
-    s('inputRobotToplam',         rEft + rNak + rKre + g('inputYemek') + g('inputCari'));
-    s('inputMuhasebeToplam',      mEft + mNak + mKre);
+    s('inputKrediFark',           mKre - rKre);
+    s('inputYemekFark',           kYem - rYem);
+    s('inputRobotToplam',         rEft + rNak + rKre + rYem + g('inputCari'));
+    s('inputMuhasebeToplam',      mEft + mNak + mKre + kYem);
     s('inputKasaRobotFark',       kNak - rNak);
-    s('inputKasaNakitFarkToplam', (rEft-mEft) + (kNak-rNak) + (rKre-mKre));
+    s('inputKasaNakitFarkToplam', (mEft - rEft) + (kNak - rNak) + (mKre - rKre) + (kYem - rYem));
 };
 
 ['inputRobotEft','inputMuhasebeEft','inputKasaNakit','inputRobotNakit',
- 'inputMuhasebeNakit','inputRobotKredi','inputMuhasebeKredi','inputYemek','inputCari'
+ 'inputMuhasebeNakit','inputRobotKredi','inputMuhasebeKredi','inputYemek','inputKasaYemek','inputCari'
 ].forEach(id => document.getElementById(id).addEventListener('input', recalcForm));
 
 // ── FORM SUBMIT ────────────────────────────────────────────────
@@ -880,6 +926,7 @@ document.getElementById('dataForm').addEventListener('submit', async (e) => {
         robotKredi:  getVal('inputRobotKredi', 'robotKredi'),
         muhKredi:    getVal('inputMuhasebeKredi', 'muhKredi'),
         yemek:       getVal('inputYemek', 'yemek'),
+        kasaYemek:   getVal('inputKasaYemek', 'kasaYemek'),
         cari:        getVal('inputCari', 'cari'),
         updatedAt:   new Date().toISOString()
     };
@@ -948,6 +995,7 @@ window.editProductName = (oldName) => {
     document.getElementById('editProductNameInput').value = oldName;
     document.getElementById('editProductBarcode').value = product ? (product.barcode || '') : '';
     document.getElementById('editProductUnit').value = product ? (product.unit || '') : '';
+    document.getElementById('editProductPrice').value = product ? (product.price || 0) : 0;
     
     toggleModal('productEditModal', true);
 };
@@ -964,6 +1012,7 @@ document.getElementById('productEditForm')?.addEventListener('submit', async (e)
     const newName = document.getElementById('editProductNameInput').value.trim().toUpperCase('tr-TR');
     const barcode = document.getElementById('editProductBarcode').value.trim();
     const unit = document.getElementById('editProductUnit').value.trim().toUpperCase('tr-TR');
+    const price = parseFloat(document.getElementById('editProductPrice').value) || 0;
 
     if (!newName) return;
 
@@ -979,7 +1028,7 @@ document.getElementById('productEditForm')?.addEventListener('submit', async (e)
             name: newName,
             barcode: barcode,
             unit: unit,
-            price: oldProd ? (oldProd.price || 0) : 0,
+            price: price,
             isActive: oldProd ? (oldProd.isActive !== false) : true,
             updatedAt: new Date().toISOString()
         };
@@ -1157,15 +1206,17 @@ document.getElementById('btnExportExcel').addEventListener('click', () => {
         const rEft=d.robotEft||0, mEft=d.muhEft||0;
         const kNak=d.kasaNakit||0, rNak=d.robotNakit||0, mNak=d.muhNakit||0;
         const rKre=d.robotKredi||0, mKre=d.muhKredi||0;
-        const ef=rEft-mEft, pf=kNak-rNak, kf=rKre-mKre;
+        const rYem=d.yemek||0, kYem=d.kasaYemek||0;
+        const ef=mEft-rEft, pf=kNak-rNak, kf=mKre-rKre, yf=kYem-rYem;
         return {
             'Tarih': formatDate(d.date),
             'ROBOTPOS EFT': rEft, 'MUHASEBE EFT': mEft, 'EFT FARK': ef,
             'KASA NAKİT': kNak, 'ROBOTPOS NAKİT': rNak, 'MUHASEBE NAKİT': mNak, 'POS-ROBOT NAKİT FARK': pf,
             'ROBOTPOS KREDİ': rKre, 'MUHASEBE KREDİ': mKre, 'KREDİ KART FARK': kf,
-            'ROBOTPOS TOPLAM': rEft+rNak+rKre, 'MUHASEBE TOPLAM': mEft+mNak+mKre,
-            'KASA-ROBOT FARK': kNak-rNak, 'KASA NAKİT FARK TOPLAM': ef+pf+kf,
-            'YEMEK KARTLARI': d.yemek||0, 'CARİ': d.cari||0
+            'ROBOTPOS YEMEK KARTLARI': rYem, 'KASA YEMEK KARTLARI': kYem, 'YEMEK FARK': yf,
+            'ROBOTPOS TOPLAM': rEft+rNak+rKre+rYem+(d.cari||0), 'MUHASEBE TOPLAM': mEft+mNak+mKre+kYem,
+            'KASA-ROBOT FARK': kNak-rNak, 'KASA NAKİT FARK TOPLAM': ef+pf+kf+yf,
+            'CARİ': d.cari||0
         };
     });
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -1185,20 +1236,25 @@ document.getElementById('btnExportPDF').addEventListener('click', () => {
         const rEft=d.robotEft||0, mEft=d.muhEft||0;
         const kNak=d.kasaNakit||0, rNak=d.robotNakit||0, mNak=d.muhNakit||0;
         const rKre=d.robotKredi||0, mKre=d.muhKredi||0;
-        const ef=rEft-mEft, pf=kNak-rNak, kf=rKre-mKre;
-        return [formatDate(d.date), formatCurrency(rEft), formatCurrency(mEft), formatCurrency(ef),
+        const rYem=d.yemek||0, kYem=d.kasaYemek||0;
+        const ef=mEft-rEft, pf=kNak-rNak, kf=mKre-rKre, yf=kYem-rYem;
+        return [
+            formatDate(d.date),
+            formatCurrency(rEft), formatCurrency(mEft), formatCurrency(ef),
             formatCurrency(kNak), formatCurrency(rNak), formatCurrency(mNak), formatCurrency(pf),
             formatCurrency(rKre), formatCurrency(mKre), formatCurrency(kf),
-            formatCurrency(rEft+rNak+rKre), formatCurrency(mEft+mNak+mKre),
-            formatCurrency(kNak-rNak), formatCurrency(ef+pf+kf)];
+            formatCurrency(rYem), formatCurrency(kYem), formatCurrency(yf),
+            formatCurrency(rEft+rNak+rKre+rYem+(d.cari||0)), formatCurrency(mEft+mNak+mKre+kYem),
+            formatCurrency(kNak-rNak), formatCurrency(ef+pf+kf+yf)
+        ];
     });
     doc.autoTable({
         startY: 26,
-        head: [['Tarih','R.EFT','M.EFT','EFT FARK','KASA NAK','R.NAK','M.NAK','NAK FARK','R.KRE','M.KRE','KRE FARK','R.TOP','M.TOP','KASA-ROB','FARK TOP']],
+        head: [['Tarih','R.EFT','M.EFT','EFT FARK','KASA NAK','R.NAK','M.NAK','NAK FARK','R.KRE','M.KRE','KRE FARK','R.YEM','K.YEM','YEM FARK','R.TOP','M.TOP','KASA-ROB','FARK TOP']],
         body: rows, theme: 'grid',
         headStyles: { fillColor: [59,130,246], fontSize: 7, halign: 'center' },
         styles: { fontSize: 7, cellPadding: 1.5 },
-        columnStyles: { 3:{textColor:[59,130,246]}, 7:{textColor:[59,130,246]}, 10:{textColor:[59,130,246]}, 14:{textColor:[16,185,129],fontStyle:'bold'} }
+        columnStyles: { 3:{textColor:[59,130,246]}, 7:{textColor:[59,130,246]}, 10:{textColor:[59,130,246]}, 13:{textColor:[59,130,246]}, 17:{textColor:[16,185,129],fontStyle:'bold'} }
     });
     doc.save(`Rapor_${new Date().toISOString().split('T')[0]}.pdf`);
 });
