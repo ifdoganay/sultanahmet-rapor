@@ -70,6 +70,7 @@ const updateUIVisibility = () => {
         const canSeeRez = isAdmin || (currentUser && currentUser.perms && currentUser.perms.rezervasyon);
         const canSeeUretim = isAdmin || (currentUser && currentUser.perms && currentUser.perms.uretim);
         const canSeeFatura = isAdmin || (currentUser && currentUser.perms && currentUser.perms.fatura);
+        const canSeeSatis = isAdmin || (currentUser && currentUser.perms && currentUser.perms.satis);
 
         document.getElementById('toggleMaliAnaliz')?.parentElement?.classList.toggle('hidden', !canSeeMali);
         document.getElementById('toggleDepoStok')?.parentElement?.classList.toggle('hidden', !canSeeStok);
@@ -85,6 +86,9 @@ const updateUIVisibility = () => {
 
         const toggleFatura = document.getElementById('toggleFatura');
         if(toggleFatura) toggleFatura.parentElement.classList.toggle('hidden', !canSeeFatura);
+
+        const toggleSatis = document.getElementById('toggleSatis');
+        if(toggleSatis) toggleSatis.parentElement.classList.toggle('hidden', !canSeeSatis);
 
         // Forms should be hidden for non-admins
         document.getElementById('dataForm')?.classList.toggle('hidden', !isAdmin);
@@ -1817,14 +1821,9 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
             
             // Auto-trigger mobile calendar integration
             data.id = docRef.id;
-            if (confirm('Bu rezervasyon mobildeki takviminize eklensin mi?')) {
-                const choice = confirm("Google Takvim'e eklemek için Tamam'a, telefon takviminize (iCal/ICS) eklemek için İptal'e tıklayın.");
-                if (choice) {
-                    openGoogleCalendar(data);
-                } else {
-                    downloadICS(data);
-                }
-            }
+            setTimeout(() => {
+                showCalendarModal(data);
+            }, 500);
 
             if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
                 const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + (data.email ? "\n✉ E-posta: " + data.email : "") + "\n🍽 Menü: " + (data.menu || '-') + (data.invoice ? "\n🧾 Fatura: " + data.invoice : "") + (data.taxNumber ? "\n🆔 V.N.: " + data.taxNumber : "") + (data.taxOffice ? "\n🏢 V.D.: " + data.taxOffice : "") + (data.address ? "\n📍 Adres: " + data.address : "") + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
@@ -1987,31 +1986,64 @@ window.deleteReservation = async (id) => {
     } catch (e) { showToast('Hata!', 'error'); }
 };
 
-const openGoogleCalendar = (rez) => {
-    const title = `Rezervasyon: ${rez.customer}`;
-    let description = `Grup: ${rez.customer}\nKişi: ${rez.count}`;
-    if (rez.freeCount) description += ` (+${rez.freeCount} Free)`;
-    if (rez.menu) description += `\nMenü: ${rez.menu}`;
-    if (rez.contact) description += `\nİletişim: ${rez.contact}`;
-    if (rez.payment) description += `\nÖdeme: ${rez.payment}`;
+const getCalendarDates = (dateStr, timeStart, timeEnd) => {
+    timeStart = (timeStart || '12:00').trim();
+    timeEnd = (timeEnd || '14:00').trim();
     
-    const dateStr = rez.date.replace(/-/g, ''); // YYYYMMDD
-    let timeStart = '120000';
-    let timeEnd = '140000';
+    const padZero = (num) => String(num).padStart(2, '0');
     
-    if (rez.time) {
-        const parts = rez.time.split(' - ');
-        if (parts.length === 2) {
-            timeStart = parts[0].replace(/:/g, '') + '00';
-            timeEnd = parts[1].replace(/:/g, '') + '00';
+    const formatTimePart = (timeStr) => {
+        const parts = timeStr.split(':');
+        const h = padZero(parts[0] || '12');
+        const m = padZero(parts[1] || '00');
+        return `${h}${m}00`;
+    };
+    
+    const formatTimeForISO = (timeStr) => {
+        const parts = timeStr.split(':');
+        const h = padZero(parts[0] || '12');
+        const m = padZero(parts[1] || '00');
+        return `${h}:${m}`;
+    };
+    
+    const cleanDateStr = dateStr.replace(/[^0-9]/g, '');
+    const startLocal = `${cleanDateStr}T${formatTimePart(timeStart)}`;
+    const endLocal = `${cleanDateStr}T${formatTimePart(timeEnd)}`;
+    
+    const isoTimeStart = formatTimeForISO(timeStart);
+    const isoTimeEnd = formatTimeForISO(timeEnd);
+    
+    let startUTC = '';
+    let endUTC = '';
+    
+    try {
+        const startD = new Date(`${dateStr}T${isoTimeStart}:00+03:00`);
+        const endD = new Date(`${dateStr}T${isoTimeEnd}:00+03:00`);
+        if (!isNaN(startD.getTime()) && !isNaN(endD.getTime())) {
+            startUTC = startD.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            endUTC = endD.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        } else {
+            throw new Error('Invalid Date');
+        }
+    } catch (e) {
+        try {
+            const startD = new Date(`${dateStr}T${isoTimeStart}:00`);
+            const endD = new Date(`${dateStr}T${isoTimeEnd}:00`);
+            if (!isNaN(startD.getTime()) && !isNaN(endD.getTime())) {
+                const startUTC_ms = startD.getTime() - (3 * 60 * 60 * 1000);
+                const endUTC_ms = endD.getTime() - (3 * 60 * 60 * 1000);
+                startUTC = new Date(startUTC_ms).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+                endUTC = new Date(endUTC_ms).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            } else {
+                throw new Error('Fallback failed');
+            }
+        } catch (e2) {
+            startUTC = `${cleanDateStr}T${formatTimePart(timeStart)}Z`;
+            endUTC = `${cleanDateStr}T${formatTimePart(timeEnd)}Z`;
         }
     }
     
-    const start = `${dateStr}T${timeStart}`;
-    const end = `${dateStr}T${timeEnd}`;
-    
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${start}/${end}&details=${encodeURIComponent(description)}&ctz=Europe/Istanbul`;
-    window.open(url, '_blank');
+    return { startLocal, endLocal, startUTC, endUTC };
 };
 
 const downloadICS = (rez) => {
@@ -2022,20 +2054,18 @@ const downloadICS = (rez) => {
     if (rez.contact) description += `\nİletişim: ${rez.contact}`;
     if (rez.payment) description += `\nÖdeme: ${rez.payment}`;
     
-    const dateStr = rez.date.replace(/-/g, ''); // YYYYMMDD
-    let timeStart = '120000';
-    let timeEnd = '140000';
-    
+    // Parse time
+    let timeStart = '12:00';
+    let timeEnd = '14:00';
     if (rez.time) {
         const parts = rez.time.split(' - ');
         if (parts.length === 2) {
-            timeStart = parts[0].replace(/:/g, '') + '00';
-            timeEnd = parts[1].replace(/:/g, '') + '00';
+            timeStart = parts[0];
+            timeEnd = parts[1];
         }
     }
     
-    const start = `${dateStr}T${timeStart}`;
-    const end = `${dateStr}T${timeEnd}`;
+    const dates = getCalendarDates(rez.date, timeStart, timeEnd);
     
     const icsLines = [
         'BEGIN:VCALENDAR',
@@ -2045,8 +2075,8 @@ const downloadICS = (rez) => {
         'BEGIN:VEVENT',
         `UID:${rez.id || Date.now()}@sultanahmetkoftecisi.com`,
         `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-        `DTSTART;TZID=Europe/Istanbul:${start}`,
-        `DTEND;TZID=Europe/Istanbul:${end}`,
+        `DTSTART:${dates.startUTC}`,
+        `DTEND:${dates.endUTC}`,
         `SUMMARY:${title}`,
         `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
         'END:VEVENT',
@@ -2063,15 +2093,78 @@ const downloadICS = (rez) => {
     document.body.removeChild(link);
 };
 
+const showCalendarModal = (rez) => {
+    // Remove existing modal if any
+    const existing = document.getElementById('calendarModal');
+    if (existing) existing.remove();
+
+    // Create modal element
+    const modal = document.createElement('div');
+    modal.id = 'calendarModal';
+    modal.style.cssText = `
+        position:fixed; top:0; left:0; width:100%; height:100%;
+        background:rgba(15,23,42,0.75); backdrop-filter:blur(6px);
+        display:flex; align-items:center; justify-content:center;
+        z-index:99999; animation: fadeIn 0.2s ease;
+    `;
+
+    const title = `Rezervasyon: ${rez.customer}`;
+    let description = `Grup: ${rez.customer}\nKişi: ${rez.count}`;
+    if (rez.freeCount) description += ` (+${rez.freeCount} Free)`;
+    if (rez.menu) description += `\nMenü: ${rez.menu}`;
+    if (rez.contact) description += `\nİletişim: ${rez.contact}`;
+    if (rez.payment) description += `\nÖdeme: ${rez.payment}`;
+    
+    // Parse time
+    let timeStart = '12:00';
+    let timeEnd = '14:00';
+    if (rez.time) {
+        const parts = rez.time.split(' - ');
+        if (parts.length === 2) {
+            timeStart = parts[0];
+            timeEnd = parts[1];
+        }
+    }
+    
+    const dates = getCalendarDates(rez.date, timeStart, timeEnd);
+    const googleUrl = `https://calendar.google.com/calendar/r/eventedit?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dates.startLocal}/${dates.endLocal}&details=${encodeURIComponent(description)}&ctz=Europe/Istanbul`;
+
+    const content = document.createElement('div');
+    content.className = 'glass-panel';
+    content.style.cssText = `
+        max-width:400px; width:90%; padding:1.5rem; border-radius:12px;
+        background:rgba(30,41,59,0.9); border:1px solid rgba(255,255,255,0.15);
+        color:white; text-align:center; box-shadow:0 15px 30px rgba(0,0,0,0.5);
+    `;
+    
+    content.innerHTML = `
+        <h3 style="margin-top:0; margin-bottom:0.75rem; font-size:1.2rem; color:#93c5fd; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><i class="fa-solid fa-calendar-plus"></i> Takvime Ekle</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem; line-height:1.4;">Lütfen eklemek istediğiniz takvim uygulamasını seçin:</p>
+        <div style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.5rem;">
+            <a href="${googleUrl}" target="_blank" class="btn btn-primary" style="display:inline-flex; align-items:center; justify-content:center; gap:0.5rem; text-decoration:none; padding:0.6rem; color:white; font-weight:600; font-size:0.9rem;" onclick="document.getElementById('calendarModal').remove()">
+                <i class="fa-brands fa-google"></i> Google Takvim'e Ekle
+            </a>
+            <button id="btnIcalDownload" class="btn btn-success" style="display:inline-flex; align-items:center; justify-content:center; gap:0.5rem; padding:0.6rem; font-weight:600; font-size:0.9rem;">
+                <i class="fa-solid fa-download"></i> Telefon Takvimine Ekle (iCal/ICS)
+            </button>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('calendarModal').remove()" style="width:100%;">Kapat</button>
+    `;
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    // Setup ICS Download trigger
+    document.getElementById('btnIcalDownload').addEventListener('click', () => {
+        downloadICS(rez);
+        modal.remove();
+    });
+};
+
 window.addRezToCalendar = (id) => {
     const rez = allReservations.find(r => r.id === id);
     if (!rez) return;
-    const choice = confirm("Google Takvim'e eklemek için Tamam'a, telefon takviminize (iCal/ICS) eklemek için İptal'e tıklayın.");
-    if (choice) {
-        openGoogleCalendar(rez);
-    } else {
-        downloadICS(rez);
-    }
+    showCalendarModal(rez);
 };
 
 // --- DATA LISTENERS ---
