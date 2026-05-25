@@ -1712,6 +1712,9 @@ const renderReservations = () => {
                 ${r.address ? `<div style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${r.address}"><b>Adres:</b> ${r.address}</div>` : ''}
             </td>
             <td>
+                <button class="btn-icon" onclick="addRezToCalendar('${r.id}')" title="Takvime Ekle" style="color:var(--amber); margin-right:5px;">
+                    <i class="fa-solid fa-calendar-plus"></i>
+                </button>
                 ${!r.completed ? `
                     <button class="btn-icon" onclick="editReservation('${r.id}')" title="Düzenle" style="color:var(--primary); margin-right:5px;">
                         <i class="fa-solid fa-pen-to-square"></i>
@@ -1802,8 +1805,22 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
             showToast('Rezervasyon başarıyla güncellendi ✓', 'success');
             clearRezEditMode();
         } else {
-            await db.collection(RESERV_COLLECTION).add(data);
+            const docRef = await db.collection(RESERV_COLLECTION).add(data);
             showToast('Rezervasyon kaydedildi.', 'success');
+            
+            // Auto-trigger mobile calendar integration
+            data.id = docRef.id;
+            setTimeout(() => {
+                if (confirm('Bu rezervasyon mobildeki takviminize eklensin mi?')) {
+                    const choice = confirm("Google Takvim'e eklemek için Tamam'a, telefon takviminize (iCal/ICS) eklemek için İptal'e tıklayın.");
+                    if (choice) {
+                        openGoogleCalendar(data);
+                    } else {
+                        downloadICS(data);
+                    }
+                }
+            }, 500);
+
             if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
                 const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + (data.email ? "\n✉ E-posta: " + data.email : "") + "\n🍽 Menü: " + (data.menu || '-') + (data.invoice ? "\n🧾 Fatura: " + data.invoice : "") + (data.taxNumber ? "\n🆔 V.N.: " + data.taxNumber : "") + (data.taxOffice ? "\n🏢 V.D.: " + data.taxOffice : "") + (data.address ? "\n📍 Adres: " + data.address : "") + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
                 window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
@@ -1963,6 +1980,93 @@ window.deleteReservation = async (id) => {
         await db.collection(RESERV_COLLECTION).doc(id).delete();
         showToast('Rezervasyon silindi.');
     } catch (e) { showToast('Hata!', 'error'); }
+};
+
+const openGoogleCalendar = (rez) => {
+    const title = `Rezervasyon: ${rez.customer}`;
+    let description = `Grup: ${rez.customer}\nKişi: ${rez.count}`;
+    if (rez.freeCount) description += ` (+${rez.freeCount} Free)`;
+    if (rez.menu) description += `\nMenü: ${rez.menu}`;
+    if (rez.contact) description += `\nİletişim: ${rez.contact}`;
+    if (rez.payment) description += `\nÖdeme: ${rez.payment}`;
+    
+    const dateStr = rez.date.replace(/-/g, ''); // YYYYMMDD
+    let timeStart = '120000';
+    let timeEnd = '140000';
+    
+    if (rez.time) {
+        const parts = rez.time.split(' - ');
+        if (parts.length === 2) {
+            timeStart = parts[0].replace(/:/g, '') + '00';
+            timeEnd = parts[1].replace(/:/g, '') + '00';
+        }
+    }
+    
+    const start = `${dateStr}T${timeStart}`;
+    const end = `${dateStr}T${timeEnd}`;
+    
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${start}/${end}&details=${encodeURIComponent(description)}&ctz=Europe/Istanbul`;
+    window.open(url, '_blank');
+};
+
+const downloadICS = (rez) => {
+    const title = `Rezervasyon: ${rez.customer}`;
+    let description = `Grup: ${rez.customer}\nKişi: ${rez.count}`;
+    if (rez.freeCount) description += ` (+${rez.freeCount} Free)`;
+    if (rez.menu) description += `\nMenü: ${rez.menu}`;
+    if (rez.contact) description += `\nİletişim: ${rez.contact}`;
+    if (rez.payment) description += `\nÖdeme: ${rez.payment}`;
+    
+    const dateStr = rez.date.replace(/-/g, ''); // YYYYMMDD
+    let timeStart = '120000';
+    let timeEnd = '140000';
+    
+    if (rez.time) {
+        const parts = rez.time.split(' - ');
+        if (parts.length === 2) {
+            timeStart = parts[0].replace(/:/g, '') + '00';
+            timeEnd = parts[1].replace(/:/g, '') + '00';
+        }
+    }
+    
+    const start = `${dateStr}T${timeStart}`;
+    const end = `${dateStr}T${timeEnd}`;
+    
+    const icsLines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Sultanahmet Koftecisi//Rezervasyon Takvimi//TR',
+        'CALSCALE:GREGORIAN',
+        'BEGIN:VEVENT',
+        `UID:${rez.id || Date.now()}@sultanahmetkoftecisi.com`,
+        `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+        `DTSTART;TZID=Europe/Istanbul:${start}`,
+        `DTEND;TZID=Europe/Istanbul:${end}`,
+        `SUMMARY:${title}`,
+        `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ];
+    
+    const icsContent = icsLines.join('\r\n');
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `rezervasyon_${rez.customer.replace(/[^a-zA-Z0-9]/g, '_')}_${rez.date}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+window.addRezToCalendar = (id) => {
+    const rez = allReservations.find(r => r.id === id);
+    if (!rez) return;
+    const choice = confirm("Google Takvim'e eklemek için Tamam'a, telefon takviminize (iCal/ICS) eklemek için İptal'e tıklayın.");
+    if (choice) {
+        openGoogleCalendar(rez);
+    } else {
+        downloadICS(rez);
+    }
 };
 
 // --- DATA LISTENERS ---
