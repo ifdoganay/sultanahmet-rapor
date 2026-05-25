@@ -69,6 +69,7 @@ const updateUIVisibility = () => {
         const canSeePersonel = isAdmin || (currentUser && currentUser.perms && currentUser.perms.personel);
         const canSeeRez = isAdmin || (currentUser && currentUser.perms && currentUser.perms.rezervasyon);
         const canSeeUretim = isAdmin || (currentUser && currentUser.perms && currentUser.perms.uretim);
+        const canSeeFatura = isAdmin || (currentUser && currentUser.perms && currentUser.perms.fatura);
 
         document.getElementById('toggleMaliAnaliz')?.parentElement?.classList.toggle('hidden', !canSeeMali);
         document.getElementById('toggleDepoStok')?.parentElement?.classList.toggle('hidden', !canSeeStok);
@@ -82,11 +83,14 @@ const updateUIVisibility = () => {
         const toggleUretim = document.getElementById('toggleUretim');
         if(toggleUretim) toggleUretim.parentElement.classList.toggle('hidden', !canSeeUretim);
 
+        const toggleFatura = document.getElementById('toggleFatura');
+        if(toggleFatura) toggleFatura.parentElement.classList.toggle('hidden', !canSeeFatura);
+
         // Forms should be hidden for non-admins
         document.getElementById('dataForm')?.classList.toggle('hidden', !isAdmin);
         document.getElementById('stokForm')?.classList.toggle('hidden', !isAdmin);
         document.getElementById('newPersonelForm')?.parentElement?.parentElement?.classList.toggle('hidden', !isAdmin);
-        document.getElementById('rezervForm')?.parentElement?.classList.toggle('hidden', !isAdmin);
+        document.getElementById('rezervForm')?.parentElement?.classList.toggle('hidden', !canSeeRez);
         document.getElementById('recipeForm')?.parentElement?.classList.toggle('hidden', !isAdmin);
         document.getElementById('dailyUretimForm')?.parentElement?.classList.toggle('hidden', !isAdmin);
         
@@ -179,6 +183,7 @@ const renderUserManagement = async () => {
             <td style="text-align:center"><input type="checkbox" id="perm_rez_${doc.id}"        ${p.rezervasyon ? 'checked' : ''}></td>
             <td style="text-align:center"><input type="checkbox" id="perm_uretim_${doc.id}"     ${p.uretim      ? 'checked' : ''}></td>
             <td style="text-align:center"><input type="checkbox" id="perm_satis_${doc.id}"      ${p.satis       ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_fatura_${doc.id}"     ${p.fatura      ? 'checked' : ''}></td>
             <td style="display:flex;gap:0.4rem;align-items:center;">
                 <button class="btn btn-success btn-sm" style="padding:0.3rem 0.7rem; font-size:0.75rem;" onclick="updateUser('${doc.id}')">
                     <i class="fa-solid fa-save"></i> Kaydet
@@ -222,6 +227,7 @@ window.createUser = async (e) => {
         rezervasyon: document.getElementById('newPerm_rezervasyon').checked,
         uretim:      document.getElementById('newPerm_uretim').checked,
         satis:       document.getElementById('newPerm_satis').checked,
+        fatura:      document.getElementById('newPerm_fatura').checked,
     };
 
     try {
@@ -249,9 +255,10 @@ window.updateUser = async (username) => {
     const permRez    = document.getElementById(`perm_rez_${username}`).checked;
     const permUretim = document.getElementById(`perm_uretim_${username}`).checked;
     const permSatis  = document.getElementById(`perm_satis_${username}`)?.checked || false;
+    const permFatura = document.getElementById(`perm_fatura_${username}`)?.checked || false;
 
     const updateData = {
-        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim, satis: permSatis }
+        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim, satis: permSatis, fatura: permFatura }
     };
     if (newPass) updateData.password = newPass;
 
@@ -1810,16 +1817,14 @@ document.getElementById('rezervForm')?.addEventListener('submit', async (e) => {
             
             // Auto-trigger mobile calendar integration
             data.id = docRef.id;
-            setTimeout(() => {
-                if (confirm('Bu rezervasyon mobildeki takviminize eklensin mi?')) {
-                    const choice = confirm("Google Takvim'e eklemek için Tamam'a, telefon takviminize (iCal/ICS) eklemek için İptal'e tıklayın.");
-                    if (choice) {
-                        openGoogleCalendar(data);
-                    } else {
-                        downloadICS(data);
-                    }
+            if (confirm('Bu rezervasyon mobildeki takviminize eklensin mi?')) {
+                const choice = confirm("Google Takvim'e eklemek için Tamam'a, telefon takviminize (iCal/ICS) eklemek için İptal'e tıklayın.");
+                if (choice) {
+                    openGoogleCalendar(data);
+                } else {
+                    downloadICS(data);
                 }
-            }, 500);
+            }
 
             if (confirm('Rezervasyon Şeflere WhatsApp\'tan bildirilsin mi?')) {
                 const text = "🔔 *YENİ GRUP REZERVASYONU*\n\n📅 Tarih: " + data.date + "\n⏰ Saat: " + data.time + "\n👥 Toplam Kişi: " + data.totalCount + " (" + data.count + " + " + (data.freeCount || 0) + " Free)\n📌 Grup: " + data.customer + "\n👤 İlgili Kişi: " + (data.contact || '-') + (data.email ? "\n✉ E-posta: " + data.email : "") + "\n🍽 Menü: " + (data.menu || '-') + (data.invoice ? "\n🧾 Fatura: " + data.invoice : "") + (data.taxNumber ? "\n🆔 V.N.: " + data.taxNumber : "") + (data.taxOffice ? "\n🏢 V.D.: " + data.taxOffice : "") + (data.address ? "\n📍 Adres: " + data.address : "") + "\n\nLütfen hazırlıklarınızı buna göre planlayın.";
