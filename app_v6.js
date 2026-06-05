@@ -516,11 +516,90 @@ document.getElementById('btnClearData').addEventListener('click', async () => {
 });
 
 // ── RENDER ─────────────────────────────────────────────────────
+let activeFilters = {};
+
+const applyFilters = () => {
+    let filtered = [...allData];
+    
+    // Tarih aralığı filtrelemesi
+    const dateStart = document.getElementById('filterDateStart')?.value || '';
+    const dateEnd = document.getElementById('filterDateEnd')?.value || '';
+    
+    if (dateStart !== '') {
+        filtered = filtered.filter(item => item.date >= dateStart);
+    }
+    if (dateEnd !== '') {
+        filtered = filtered.filter(item => item.date <= dateEnd);
+    }
+    
+    Object.keys(activeFilters).forEach(key => {
+        const val = activeFilters[key];
+        if (val === '') return;
+        
+        filtered = filtered.filter(item => {
+            if (key === 'date') return true; // Tarih zaten aralık filtrelemesinde yapıldı
+            
+            let numVal = 0;
+            const rEft = item.robotEft||0, mEft = item.muhEft||0;
+            const kNak = item.kasaNakit||0, rNak = item.robotNakit||0, mNak = item.muhNakit||0;
+            const rKre = item.robotKredi||0, mKre = item.muhKredi||0;
+            const rYem = item.yemek||0, kYem = item.kasaYemek||0;
+            const cari = item.cari||0;
+            
+            if (key === 'robotEft') numVal = rEft;
+            else if (key === 'muhEft') numVal = mEft;
+            else if (key === 'eftFark') numVal = mEft - rEft;
+            else if (key === 'kasaNakit') numVal = kNak;
+            else if (key === 'robotNakit') numVal = rNak;
+            else if (key === 'muhNakit') numVal = mNak;
+            else if (key === 'posRobFark') numVal = kNak - rNak;
+            else if (key === 'robotKredi') numVal = rKre;
+            else if (key === 'muhKredi') numVal = mKre;
+            else if (key === 'kreFark') numVal = mKre - rKre;
+            else if (key === 'yemek') numVal = rYem;
+            else if (key === 'kasaYemek') numVal = kYem;
+            else if (key === 'yemekFark') numVal = kYem - rYem;
+            else if (key === 'robTop') numVal = rEft + rNak + rKre + rYem + cari;
+            else if (key === 'muhTop') numVal = mEft + mNak + mKre + kYem;
+            else if (key === 'kasRobFark') numVal = kNak - rNak;
+            else if (key === 'nakFarkTop') numVal = (mEft - rEft) + (kNak - rNak) + (mKre - rKre) + (kYem - rYem);
+            else if (key === 'cari') numVal = cari;
+            
+            const numStr = numVal.toFixed(2);
+            const numRawStr = numVal.toString();
+            return numStr.includes(val) || numRawStr.includes(val);
+        });
+    });
+    
+    updateTable(filtered);
+    
+    const hasDateFilter = dateStart !== '' || dateEnd !== '';
+    const hasActiveFilters = Object.values(activeFilters).some(v => v !== '');
+    
+    if (hasDateFilter || hasActiveFilters) {
+        document.getElementById('recordCount').textContent = `${filtered.length} / ${allData.length} Kayıt`;
+    } else {
+        document.getElementById('recordCount').textContent = `${allData.length} Kayıt`;
+    }
+};
+
+// Bind table filters input/change events
+const onFilterChange = (e) => {
+    if (e.target.classList.contains('table-filter')) {
+        const col = e.target.getAttribute('data-col');
+        activeFilters[col] = e.target.value.trim();
+        applyFilters();
+    } else if (e.target.classList.contains('table-filter-date')) {
+        applyFilters();
+    }
+};
+document.addEventListener('input', onFilterChange);
+document.addEventListener('change', onFilterChange);
+
 const renderAll = (data) => {
     updateKPIs(data);
-    updateTable(data);
+    applyFilters();
     updateChart(data);
-    document.getElementById('recordCount').textContent = `${data.length} Kayıt`;
 };
 
 const updateKPIs = (data) => {
@@ -532,11 +611,21 @@ const updateKPIs = (data) => {
         totalMobil  += (d.robotEft||0);
     });
     
+    let totalRez = 0;
+    if (typeof allReservations !== 'undefined' && Array.isArray(allReservations)) {
+        allReservations.forEach(r => {
+            totalRez += (r.count || 0) * (r.price || 0);
+        });
+    }
+
     const kRatio = totalRobot > 0 ? (totalKredi / totalRobot) * 100 : 0;
     const nRatio = totalRobot > 0 ? (totalNakit / totalRobot) * 100 : 0;
     const mRatio = totalRobot > 0 ? (totalMobil / totalRobot) * 100 : 0;
 
     document.getElementById('kpiTotal').textContent       = formatCurrency(totalRobot) + ' TL';
+    if (document.getElementById('kpiRezTotal')) {
+        document.getElementById('kpiRezTotal').textContent = formatCurrency(totalRez) + ' TL';
+    }
     document.getElementById('kpiKrediRatio').textContent  = `%${kRatio.toFixed(1)}`;
     document.getElementById('kpiNakitRatio').textContent  = `%${nRatio.toFixed(1)}`;
     document.getElementById('kpiMuhasebeRatio').textContent = `%${mRatio.toFixed(1)}`;
@@ -1215,7 +1304,7 @@ document.getElementById('btnExportExcel').addEventListener('click', () => {
             'ROBOTPOS KREDİ': rKre, 'MUHASEBE KREDİ': mKre, 'KREDİ KART FARK': kf,
             'ROBOTPOS YEMEK KARTLARI': rYem, 'KASA YEMEK KARTLARI': kYem, 'YEMEK FARK': yf,
             'ROBOTPOS TOPLAM': rEft+rNak+rKre+rYem+(d.cari||0), 'MUHASEBE TOPLAM': mEft+mNak+mKre+kYem,
-            'KASA-ROBOT FARK': kNak-rNak, 'KASA NAKİT FARK TOPLAM': ef+pf+kf+yf,
+            'KASA NAKİT TOPLAM FARK': kNak-rNak, 'KASA ROBOTPOS TOPLAM FARK': ef+pf+kf+yf,
             'CARİ': d.cari||0
         };
     });
@@ -1250,7 +1339,7 @@ document.getElementById('btnExportPDF').addEventListener('click', () => {
     });
     doc.autoTable({
         startY: 26,
-        head: [['Tarih','R.EFT','M.EFT','EFT FARK','KASA NAK','R.NAK','M.NAK','NAK FARK','R.KRE','M.KRE','KRE FARK','R.YEM','K.YEM','YEM FARK','R.TOP','M.TOP','KASA-ROB','FARK TOP']],
+        head: [['Tarih','R.EFT','M.EFT','EFT FARK','KASA NAK','R.NAK','M.NAK','NAK FARK','R.KRE','M.KRE','KRE FARK','R.YEM','K.YEM','YEM FARK','R.TOP','M.TOP','K.NAK TOP FARK','K.ROB TOP FARK']],
         body: rows, theme: 'grid',
         headStyles: { fillColor: [59,130,246], fontSize: 7, halign: 'center' },
         styles: { fontSize: 7, cellPadding: 1.5 },
@@ -1985,26 +2074,9 @@ window.toggleRezStatus = async (id, status) => {
                 });
             }
 
-            // 3. Finansal Tutarı Günlük Veriye İlave Et
-            const totalPrice = (rezDoc.count || 0) * (rezDoc.price || 0);
-            if (totalPrice > 0) {
-                const existingData = allData.find(d => d.date === rezDoc.date);
-                const dataId = existingData ? existingData.id : rezDoc.date.replace(/-/g, '');
-                const dataRef = db.collection(COLLECTION).doc(dataId);
-                
-                let updates = existingData ? { ...existingData } : { id: dataId, date: rezDoc.date };
-                const payType = (rezDoc.payment || '').toUpperCase('tr-TR');
-                
-                if (payType.includes('NAKİT') || payType.includes('NAKIT')) {
-                    updates.kasaNakit = (updates.kasaNakit || 0) + totalPrice;
-                } else if (payType.includes('KREDİ') || payType.includes('KREDI') || payType.includes('KART')) {
-                    updates.robotKredi = (updates.robotKredi || 0) + totalPrice;
-                } else {
-                    updates.cari = (updates.cari || 0) + totalPrice; // Havale/Cari/Acenta
-                }
-                updates.updatedAt = new Date().toISOString();
-                batch.set(dataRef, updates);
-            }
+            // 3. Finansal Tutarı Günlük Veriye İlave Etme İptal Edildi
+            // Kullanıcı talebi: Rezervasyon ödemeleri Z Raporuna yansıtıldığı için çifte sayım olmaması adına Mali Analiz'e otomatik eklenmemelidir.
+
 
             await batch.commit();
             showToast('Ziyaret tamamlandı. Kasa ve Stoklar otomatik güncellendi.', 'success');
@@ -2228,6 +2300,9 @@ const initReservations = () => {
     db.collection(RESERV_COLLECTION).orderBy('date', 'desc').onSnapshot(snap => {
         allReservations = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderReservations();
+        if (typeof allData !== 'undefined' && Array.isArray(allData)) {
+            updateKPIs(allData); // Güncel rezervasyon geliri KPI'a yansısın
+        }
     });
 
     db.collection(CUSTOMER_COLLECTION).onSnapshot(snap => {
@@ -2324,6 +2399,45 @@ document.getElementById('recipeForm')?.addEventListener('submit', async (e) => {
         showToast('Reçete kaydedildi.');
     } catch (err) { showToast('Hata!', 'error'); }
 });
+
+const updateUretimPreview = () => {
+    const productName = document.getElementById('uretimProductSelect')?.value;
+    const amount = parseFloat(document.getElementById('uretimAmount')?.value) || 1;
+    const previewDiv = document.getElementById('uretimIngredientsPreview');
+    
+    if (!previewDiv) return;
+    
+    if (!productName) {
+        previewDiv.style.display = 'none';
+        return;
+    }
+    
+    const recipe = allRecipes.find(r => r.id === productName);
+    if (!recipe || !recipe.ingredients || recipe.ingredients.length === 0) {
+        previewDiv.style.display = 'none';
+        return;
+    }
+    
+    // Üretilen ürünün birimini bul
+    const prodDef = Object.values(allProducts).find(p => p.name.trim().toLowerCase() === productName.trim().toLowerCase());
+    const prodUnit = prodDef && prodDef.unit ? prodDef.unit : 'Adet/Porsiyon';
+    
+    let html = `<strong><i class="fa-solid fa-flask"></i> Kullanılacak Malzemeler (${amount} ${prodUnit} için):</strong><ul style="margin-top: 5px; padding-left: 20px; margin-bottom: 0;">`;
+    recipe.ingredients.forEach(ing => {
+        const totalAmount = (ing.amount * amount).toFixed(2);
+        // Malzemenin birimini bul
+        const ingDef = Object.values(allProducts).find(p => p.name.trim().toLowerCase() === ing.name.trim().toLowerCase());
+        const ingUnit = ingDef && ingDef.unit ? ingDef.unit : 'birim';
+        html += `<li>${ing.name}: <strong>${totalAmount}</strong> ${ingUnit}</li>`;
+    });
+    html += '</ul>';
+    
+    previewDiv.innerHTML = html;
+    previewDiv.style.display = 'block';
+};
+
+document.getElementById('uretimProductSelect')?.addEventListener('change', updateUretimPreview);
+document.getElementById('uretimAmount')?.addEventListener('input', updateUretimPreview);
 
 document.getElementById('dailyUretimForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();

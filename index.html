@@ -77,6 +77,10 @@
                     <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
                     <div class="kpi-info"><h3>ROBOTPOS TOPLAM</h3><p id="kpiTotal">0,00 TL</p></div>
                 </div>
+                <div class="kpi-card glass-panel" style="border: 1px solid rgba(139, 92, 246, 0.5);">
+                    <div class="kpi-icon" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;"><i class="fa-solid fa-calendar-check"></i></div>
+                    <div class="kpi-info"><h3>REZERVASYON GELİRİ</h3><p id="kpiRezTotal">0,00 TL</p></div>
+                </div>
                 <div class="kpi-card glass-panel">
                     <div class="kpi-icon kredit"><i class="fa-solid fa-credit-card"></i></div>
                     <div class="kpi-info"><h3>Kredi Kartı Oranı</h3><p id="kpiKrediRatio">%0</p></div>
@@ -170,8 +174,8 @@
                     <div class="form-row-4">
                         <div class="form-group"><label>ROBOTPOS TOPLAM</label><input type="number" step="0.01" id="inputRobotToplam" class="calc-field" readonly></div>
                         <div class="form-group"><label>MUHASEBE TOPLAM</label><input type="number" step="0.01" id="inputMuhasebeToplam" class="calc-field" readonly></div>
-                        <div class="form-group"><label>KASA - ROBOT FARK</label><input type="number" step="0.01" id="inputKasaRobotFark" class="calc-field" readonly></div>
-                        <div class="form-group"><label>KASA NAKİT FARK TOPLAM</label><input type="number" step="0.01" id="inputKasaNakitFarkToplam" class="calc-field highlight-field" readonly></div>
+                        <div class="form-group"><label>KASA NAKİT TOPLAM FARK</label><input type="number" step="0.01" id="inputKasaRobotFark" class="calc-field" readonly></div>
+                        <div class="form-group"><label>KASA ROBOTPOS TOPLAM FARK</label><input type="number" step="0.01" id="inputKasaNakitFarkToplam" class="calc-field highlight-field" readonly></div>
                     </div>
 
                     <div class="form-section-label">DİĞER</div>
@@ -210,10 +214,37 @@
                                 <th class="fark-col">YEMEK FARK</th>
                                 <th class="toplam-col">ROBOTPOS TOPLAM</th>
                                 <th class="toplam-col">MUHASEBE TOPLAM</th>
-                                <th class="fark-col">KASA - ROBOT FARK</th>
-                                <th class="toplam-col">KASA NAKİT FARK TOPLAM</th>
+                                <th class="fark-col">KASA NAKİT TOPLAM FARK</th>
+                                <th class="toplam-col">KASA ROBOTPOS TOPLAM FARK</th>
                                 <th>CARİ</th>
                                 <th>İşlem</th>
+                            </tr>
+                            <tr class="filter-row">
+                                <th>
+                                    <div class="date-range-filter">
+                                        <input type="date" class="table-filter-date" id="filterDateStart" title="Başlangıç Tarihi">
+                                        <input type="date" class="table-filter-date" id="filterDateEnd" title="Bitiş Tarihi">
+                                    </div>
+                                </th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="robotEft"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="muhEft"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="eftFark"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="kasaNakit"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="robotNakit"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="muhNakit"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="posRobFark"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="robotKredi"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="muhKredi"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="kreFark"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="yemek"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="kasaYemek"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="yemekFark"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="robTop"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="muhTop"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="kasRobFark"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="nakFarkTop"></th>
+                                <th><input type="text" placeholder="Süz..." class="table-filter" data-col="cari"></th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody id="tableBody"></tbody>
@@ -768,6 +799,8 @@
                         <div class="form-group">
                             <label>Üretim Miktarı (Adet/Porsiyon)</label>
                             <input type="number" id="uretimAmount" placeholder="0" required>
+                        </div>
+                        <div id="uretimIngredientsPreview" style="margin-top: 10px; font-size: 0.85rem; color: #cbd5e1; background: rgba(15,23,42,0.4); padding: 12px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.05); display: none;">
                         </div>
                         <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
                             <button type="submit" class="btn btn-success"><i class="fa-solid fa-check"></i> Üretimi Onayla & Stoktan Düş</button>
