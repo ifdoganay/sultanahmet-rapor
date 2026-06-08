@@ -3325,6 +3325,53 @@ window.showFaturaDetay = (faturaId) => {
     toggleModal('faturaDetayModal', true);
 };
 
+// ── Tedarikçi Ödeme Listesi Excel Dışa Aktarma ──────────────────────────────
+window.exportOdemeListesiExcel = () => {
+    if (typeof XLSX === 'undefined') {
+        showToast('Excel kütüphanesi yüklenemedi!', 'error');
+        return;
+    }
+
+    const paidMap = {};
+    allFaturaOdemeler.forEach(o => {
+        const v = o.supplierVkn || '';
+        paidMap[v] = (paidMap[v] || 0) + (o.amount || 0);
+    });
+
+    const rows = [];
+    allTedarikciler.forEach(t => {
+        const paid   = paidMap[t.vkn] || 0;
+        const kalan  = (t.currentBalance || 0) - paid;
+
+        // Sadece borcu olan (kalan > 0) firmaları ekle
+        if (kalan > 0) {
+            rows.push({
+                'Tedarikçi Adı': t.name || t.id,
+                'VKN': t.vkn || '',
+                'İletişim': [t.tel, t.email].filter(Boolean).join(' | '),
+                'IBAN': t.iban ? t.iban.replace(/(.{4})/g,'$1 ').trim() : '',
+                'Toplam Borç (TL)': t.currentBalance || 0,
+                'Ödenen Tutar (TL)': paid,
+                'Ödeme Yapılacak Tutar (TL)': kalan
+            });
+        }
+    });
+
+    if (rows.length === 0) {
+        showToast('Ödeme yapılması gereken herhangi bir firma bulunamadı.', 'info');
+        return;
+    }
+
+    // Sort by remaining debt descending
+    rows.sort((a, b) => b['Ödeme Yapılacak Tutar (TL)'] - a['Ödeme Yapılacak Tutar (TL)']);
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ödeme Listesi');
+    XLSX.writeFile(wb, `Odeme_Listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Ödeme listesi Excel olarak indirildi.', 'success');
+};
+
 // ── Tedarikçi Ödeme Listesi ve Yönetimi ─────────────────────────────────────
 window.showTedarikciOdemeListesi = (supplierVkn) => {
     window.activeSupplierVkn = supplierVkn;
