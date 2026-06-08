@@ -321,7 +321,7 @@
                             <input type="number" step="0.01" id="inputStokAmount" placeholder="0" required>
                         </div>
                     </div>
-                    <div class="form-row-3" style="margin-top: 0.75rem;">
+                    <div class="form-row-4" style="margin-top: 0.75rem;">
                         <div class="form-group">
                             <label>Birim Alış Fiyatı (TL)</label>
                             <input type="number" step="0.01" id="inputStokPrice" placeholder="0.00 (Opsiyonel)">
@@ -339,6 +339,10 @@
                                 <option value="LİTRE"></option>
                                 <option value="PAKET"></option>
                             </datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Son Kullanma Tarihi (S.K.T.)</label>
+                            <input type="date" id="inputStokSkt">
                         </div>
                         <div class="form-group form-submit-col" style="display: flex; justify-content: flex-end; align-items: flex-end;">
                             <button type="submit" class="btn btn-primary" style="width: auto; padding: 0.7rem 2.5rem;"><i class="fa-solid fa-save"></i> İşlemi Kaydet</button>
@@ -378,6 +382,7 @@
                                 <th class="toplam-col">Stok Değeri</th>
                                 <th>Toplam Giriş</th>
                                 <th>Toplam Çıkış</th>
+                                <th>S.K.T.</th>
                                 <th>Son Sayım</th>
                                 <th class="admin-only hidden">İşlem</th>
                             </tr>
@@ -1225,6 +1230,10 @@
                 <label>Birim Fiyat (TL)</label>
                 <input type="number" step="0.01" id="editProductPrice" placeholder="0.00">
             </div>
+            <div class="form-group">
+                <label>Son Kullanma Tarihi (S.K.T.)</label>
+                <input type="date" id="editProductSkt">
+            </div>
             <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
                 <button type="submit" class="btn btn-primary">Güncelle</button>
             </div>
@@ -1254,6 +1263,34 @@
     </div>
 </div>
 
+<!-- SON KULLANMA TARİHİ UYARI MODAL -->
+<div id="sktUyariModal" class="modal hidden">
+    <div class="modal-content glass-panel" style="max-width:550px; border:1px solid rgba(239,68,68,0.4); background:rgba(15,23,42,0.9);">
+        <div class="section-header" style="border-bottom:1px solid rgba(239,68,68,0.3); padding-bottom:0.75rem;">
+            <h2 style="color:#ef4444; display:flex; align-items:center; gap:0.5rem;"><i class="fa-solid fa-triangle-exclamation"></i> S.K.T. Uyarısı</h2>
+            <button class="btn-icon" onclick="toggleModal('sktUyariModal', false)"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div style="margin-top:1.25rem;">
+            <p style="color:#cbd5e1; font-size:0.9rem; margin-bottom:1rem; line-height:1.4;">Aşağıdaki ürünlerin son kullanma tarihi geçmiş veya bugün dolmaktadır ve depoda stokları mevcuttur:</p>
+            <div class="table-responsive" style="max-height:250px; overflow-y:auto; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;">Ürün Adı</th>
+                            <th>Son Kullanma Tarihi</th>
+                            <th style="text-align:right">Mevcut Stok</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sktUyariBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; margin-top:1.5rem;">
+            <button class="btn btn-danger" onclick="toggleModal('sktUyariModal', false)" style="padding:0.6rem 2rem; font-weight:600;">Tamam, Anladım</button>
+        </div>
+    </div>
+</div>
+
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -1267,6 +1304,6 @@
         document.getElementById(id).classList.toggle('hidden', !show);
     }
 </script>
-<script src="app_v6.js?v=17"></script>
+<script src="app_v6.js?v=18"></script>
 </body>
 </html>
