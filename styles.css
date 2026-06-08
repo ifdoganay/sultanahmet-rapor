@@ -379,3 +379,58 @@ tbody tr:hover { background: rgba(255,255,255,0.025); }
     box-shadow: 0 4px 12px rgba(239,68,68,0.3);
 }
 
+/* ── TABLE COLUMN FILTERS ── */
+.filter-row th {
+    padding: 0.3rem 0.4rem !important;
+    background: rgba(15,23,42,0.95) !important;
+}
+.table-filter {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-main);
+    font-size: 0.7rem;
+    padding: 0.25rem 0.45rem;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+.table-filter::placeholder {
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+.table-filter:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.date-range-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 90px;
+}
+.table-filter-date {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-main);
+    font-size: 0.65rem;
+    padding: 0.15rem 0.25rem;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+.table-filter-date:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+
+
