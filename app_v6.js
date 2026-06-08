@@ -71,6 +71,7 @@ const updateUIVisibility = () => {
         const canSeeUretim = isAdmin || (currentUser && currentUser.perms && currentUser.perms.uretim);
         const canSeeFatura = isAdmin || (currentUser && currentUser.perms && currentUser.perms.fatura);
         const canSeeSatis = isAdmin || (currentUser && currentUser.perms && currentUser.perms.satis);
+        const canRegisterPayment = isAdmin || (currentUser && currentUser.perms && currentUser.perms.odeme);
 
         document.getElementById('toggleMaliAnaliz')?.parentElement?.classList.toggle('hidden', !canSeeMali);
         document.getElementById('toggleDepoStok')?.parentElement?.classList.toggle('hidden', !canSeeStok);
@@ -89,6 +90,8 @@ const updateUIVisibility = () => {
 
         const toggleSatis = document.getElementById('toggleSatis');
         if(toggleSatis) toggleSatis.parentElement.classList.toggle('hidden', !canSeeSatis);
+
+        document.getElementById('odemeFormSection')?.classList.toggle('hidden', !canRegisterPayment);
 
         // Forms should be hidden for non-admins
         document.getElementById('dataForm')?.classList.toggle('hidden', !isAdmin);
@@ -162,13 +165,13 @@ document.getElementById('btnSettings').addEventListener('click', async () => {
 
 const renderUserManagement = async () => {
     const body = document.getElementById('userManagementBody');
-    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:1rem;color:var(--text-muted)"><i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:1rem;color:var(--text-muted)"><i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...</td></tr>';
     
     const snap = await db.collection(USER_COLLECTION).get();
     body.innerHTML = '';
     
     if (snap.empty) {
-        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">Henüz kullanıcı yok.</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">Henüz kullanıcı yok.</td></tr>';
         return;
     }
 
@@ -188,6 +191,7 @@ const renderUserManagement = async () => {
             <td style="text-align:center"><input type="checkbox" id="perm_uretim_${doc.id}"     ${p.uretim      ? 'checked' : ''}></td>
             <td style="text-align:center"><input type="checkbox" id="perm_satis_${doc.id}"      ${p.satis       ? 'checked' : ''}></td>
             <td style="text-align:center"><input type="checkbox" id="perm_fatura_${doc.id}"     ${p.fatura      ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_odeme_${doc.id}"      ${p.odeme       ? 'checked' : ''}></td>
             <td style="display:flex;gap:0.4rem;align-items:center;">
                 <button class="btn btn-success btn-sm" style="padding:0.3rem 0.7rem; font-size:0.75rem;" onclick="updateUser('${doc.id}')">
                     <i class="fa-solid fa-save"></i> Kaydet
@@ -232,6 +236,7 @@ window.createUser = async (e) => {
         uretim:      document.getElementById('newPerm_uretim').checked,
         satis:       document.getElementById('newPerm_satis').checked,
         fatura:      document.getElementById('newPerm_fatura').checked,
+        odeme:       document.getElementById('newPerm_odeme').checked,
     };
 
     try {
@@ -260,9 +265,10 @@ window.updateUser = async (username) => {
     const permUretim = document.getElementById(`perm_uretim_${username}`).checked;
     const permSatis  = document.getElementById(`perm_satis_${username}`)?.checked || false;
     const permFatura = document.getElementById(`perm_fatura_${username}`)?.checked || false;
+    const permOdeme = document.getElementById(`perm_odeme_${username}`)?.checked || false;
 
     const updateData = {
-        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim, satis: permSatis, fatura: permFatura }
+        perms: { mali: permMali, stok: permStok, personel: permPersonel, rezervasyon: permRez, uretim: permUretim, satis: permSatis, fatura: permFatura, odeme: permOdeme }
     };
     if (newPass) updateData.password = newPass;
 
@@ -2919,24 +2925,35 @@ document.addEventListener('DOMContentLoaded', () => {
 // TEDARİKÇİ & FATURA YÖNETİMİ MODÜLÜ
 // ══════════════════════════════════════════════════════════════════════════
 
+window.activeSupplierVkn = null;
+
 const initFaturaModule = () => {
     // Tedarikçiler
     db.collection(TEDARIKCI_COLLECTION).onSnapshot(snap => {
         allTedarikciler = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         renderTedarikci();
         populateTedarikciSelects();
+        if (window.activeSupplierVkn) {
+            showTedarikciOdemeListesi(window.activeSupplierVkn);
+        }
     });
     // Faturalar
     db.collection(FATURA_COLLECTION).orderBy('faturaDate','desc').onSnapshot(snap => {
         allFaturalar = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         renderFaturalar();
         renderFiyatUyarilari();
+        if (window.activeSupplierVkn) {
+            showTedarikciOdemeListesi(window.activeSupplierVkn);
+        }
     });
     // Ödemeler
     db.collection(FATURA_ODEME_COLLECTION).orderBy('date','desc').onSnapshot(snap => {
         allFaturaOdemeler = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         renderFaturalar();
         renderTedarikci();
+        if (window.activeSupplierVkn) {
+            showTedarikciOdemeListesi(window.activeSupplierVkn);
+        }
     });
     // Ödeme tarihi default
     const odemeT = document.getElementById('odemeTarih');
@@ -2981,6 +2998,11 @@ const renderTedarikci = () => {
             <td style="text-align:right;color:var(--success)">${formatCurrency(paid)} TL</td>
             <td class="toplam-col" style="text-align:right;font-weight:800;color:${kalan>0?'var(--danger)':'var(--success)'}">${formatCurrency(kalan)} TL</td>
             <td>${statusHtml}</td>
+            <td>
+                <button class="btn-icon" onclick="showTedarikciOdemeListesi('${t.vkn}')" title="Ödeme Listesi">
+                    <i class="fa-solid fa-list-check"></i>
+                </button>
+            </td>
         `;
         body.appendChild(tr);
     });
@@ -3301,6 +3323,298 @@ window.showFaturaDetay = (faturaId) => {
         ${odemelerHtml ? `<div><h4 style="margin-bottom:0.5rem">Ödeme Geçmişi</h4>${odemelerHtml}</div>` : '<p style="color:var(--text-muted);font-size:0.85rem">Henüz ödeme kaydı yok.</p>'}
     `;
     toggleModal('faturaDetayModal', true);
+};
+
+// ── Tedarikçi Ödeme Listesi ve Yönetimi ─────────────────────────────────────
+window.showTedarikciOdemeListesi = (supplierVkn) => {
+    window.activeSupplierVkn = supplierVkn;
+    const t = allTedarikciler.find(x => x.vkn === supplierVkn);
+    if (!t) return;
+
+    // Filter invoices and payments for this supplier
+    const faturalar = allFaturalar.filter(f => f.supplierVkn === supplierVkn);
+    const odemeler = allFaturaOdemeler.filter(o => o.supplierVkn === supplierVkn);
+
+    // Calculate paid map by faturaId for this supplier
+    const paidByFatura = {};
+    odemeler.forEach(o => {
+        paidByFatura[o.faturaId || ''] = (paidByFatura[o.faturaId || ''] || 0) + (o.amount || 0);
+    });
+
+    // KPI
+    const totalDebt = faturalar.reduce((s, f) => s + (f.totalAmount || 0), 0);
+    const paidTotal = odemeler.reduce((s, o) => s + (o.amount || 0), 0);
+    const kalanTotal = totalDebt - paidTotal;
+
+    // Faturalar listesi HTML (Tüm faturalar ve kalan borçları)
+    const faturaRows = faturalar.map((f, index) => {
+        const paid = paidByFatura[f.id] || 0;
+        const kalan = (f.totalAmount || 0) - paid;
+        const hasKalan = kalan > 0;
+        
+        const payButton = hasKalan ? `
+            <button class="btn btn-success btn-sm" onclick="window.showQuickOdemeForm('${f.id}', '${f.faturaNo}', ${kalan})" style="padding: 2px 8px; font-size: 0.75rem;">
+                <i class="fa-solid fa-money-bill-wave"></i> Öde
+            </button>
+        ` : `<span style="color:var(--success); font-size:0.8rem; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Ödendi</span>`;
+
+        return `
+            <tr>
+                <td>${formatDate(f.faturaDate)}</td>
+                <td style="font-weight:600">${f.faturaNo}</td>
+                <td style="text-align:right">${formatCurrency(f.totalAmount)} TL</td>
+                <td style="text-align:right; color:var(--success)">${formatCurrency(paid)} TL</td>
+                <td style="text-align:right; font-weight:700; color:${hasKalan?'var(--danger)':'var(--success)'}">${formatCurrency(kalan)} TL</td>
+                <td>${payButton}</td>
+            </tr>
+        `;
+    }).join('');
+
+    // Ödemeler listesi HTML
+    const odemeRows = odemeler.map((o) => `
+        <tr>
+            <td>${formatDate(o.date)}</td>
+            <td style="font-weight:600">${o.faturaNo || '-'}</td>
+            <td style="text-align:right; color:var(--success); font-weight:700">${formatCurrency(o.amount)} TL</td>
+            <td style="text-align:left; font-size:0.8rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${o.note || '-'}</td>
+            <td>
+                <button class="btn-icon" onclick="window.deleteOdeme('${o.id}', '${o.faturaId}', '${supplierVkn}', ${o.amount})" title="Ödemeyi Sil" style="color:var(--danger)">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+
+    document.getElementById('tedarikciOdemeListesiContent').innerHTML = `
+        <div style="background:rgba(255,255,255,0.02); padding:1rem; border-radius:8px; border:1px solid var(--border-color); margin-bottom:1.25rem;">
+            <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:1.5rem; flex-wrap:wrap">
+                <div>
+                    <h3 style="margin:0 0 0.5rem 0; font-size:1.15rem; color:#93c5fd;">${t.name || t.id}</h3>
+                    <p style="font-size:0.85rem; color:var(--text-muted); margin:4px 0"><strong>VKN:</strong> ${t.vkn || '-'}</p>
+                    <p style="font-size:0.85rem; color:var(--text-muted); margin:4px 0"><strong>IBAN:</strong> ${t.iban ? t.iban.replace(/(.{4})/g,'$1 ').trim() : '-'}</p>
+                    <p style="font-size:0.85rem; color:var(--text-muted); margin:4px 0"><strong>İletişim:</strong> ${[t.tel, t.email].filter(Boolean).join(' | ') || '-'}</p>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem; text-align:center;">
+                    <div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:0.5rem;">
+                        <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Toplam Borç</span>
+                        <strong style="font-size:0.95rem; color:var(--danger);">${formatCurrency(totalDebt)} TL</strong>
+                    </div>
+                    <div style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:0.5rem;">
+                        <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Toplam Ödenen</span>
+                        <strong style="font-size:0.95rem; color:var(--success);">${formatCurrency(paidTotal)} TL</strong>
+                    </div>
+                    <div style="background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:0.5rem;">
+                        <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Kalan Borç</span>
+                        <strong style="font-size:0.95rem; color:#60a5fa;">${formatCurrency(kalanTotal)} TL</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- inline quick payment form container -->
+        <div id="quickOdemeFormContainer" style="display:none; background:rgba(16,185,129,0.06); padding:1rem; border-radius:8px; margin-bottom:1.25rem; border:1px solid rgba(16,185,129,0.3);">
+            <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#34d399"><i class="fa-solid fa-money-bill-wave"></i> Ödeme Kaydet</h4>
+            <form id="quickOdemeForm" onsubmit="window.saveQuickOdeme(event)">
+                <input type="hidden" id="quickOdemeFaturaId">
+                <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:0.75rem;">
+                    <div class="form-group" style="margin:0">
+                        <label style="font-size:0.75rem; margin-bottom:3px">Fatura No</label>
+                        <input type="text" id="quickOdemeFaturaNo" readonly style="background:rgba(255,255,255,0.08); cursor:not-allowed; padding:0.4rem; border-radius:6px; border:1px solid var(--border-color); color:white; width:100%">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label style="font-size:0.75rem; margin-bottom:3px">Ödeme Tutarı (TL)</label>
+                        <input type="number" step="0.01" id="quickOdemeTutar" required style="background:rgba(15,23,42,0.6); padding:0.4rem; border-radius:6px; border:1px solid var(--border-color); color:white; width:100%">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label style="font-size:0.75rem; margin-bottom:3px">Ödeme Tarihi</label>
+                        <input type="date" id="quickOdemeTarih" required style="background:rgba(15,23,42,0.6); padding:0.4rem; border-radius:6px; border:1px solid var(--border-color); color:white; width:100%">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:2fr 1fr; gap:0.75rem; margin-top:0.75rem;">
+                    <div class="form-group" style="margin:0">
+                        <label style="font-size:0.75rem; margin-bottom:3px">Not (Banka, Havale vb.)</label>
+                        <input type="text" id="quickOdemeNot" placeholder="Garanti Bankası, havale vb." style="background:rgba(15,23,42,0.6); padding:0.4rem; border-radius:6px; border:1px solid var(--border-color); color:white; width:100%">
+                    </div>
+                    <div style="display:flex; align-items:flex-end; gap:0.5rem;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="window.cancelQuickOdeme()" style="flex:1; padding:0.45rem 0.5rem; font-size:0.8rem">İptal</button>
+                        <button type="submit" class="btn btn-success btn-sm" style="flex:1; padding:0.45rem 0.5rem; font-size:0.8rem"><i class="fa-solid fa-check"></i> Kaydet</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div style="margin-bottom:1.5rem">
+            <h4 style="margin:0 0 0.5rem 0; font-size:0.95rem; display:flex; align-items:center; gap:0.5rem;">
+                <i class="fa-solid fa-file-invoice-dollar" style="color:var(--danger)"></i> Kalan Borç Listesi (Faturalar)
+            </h4>
+            <div class="table-responsive" style="max-height:220px; overflow-y:auto">
+                <table style="font-size:0.85rem">
+                    <thead>
+                        <tr>
+                            <th>Fatura Tarihi</th>
+                            <th>Fatura No</th>
+                            <th style="text-align:right">Tutar</th>
+                            <th style="text-align:right">Ödenen</th>
+                            <th style="text-align:right">Kalan</th>
+                            <th>İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${faturaRows || '<tr><td colspan="6" style="text-align:center; color:var(--text-muted)">Faturalandırılmış borç kaydı yok.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div>
+            <h4 style="margin:0 0 0.5rem 0; font-size:0.95rem; display:flex; align-items:center; gap:0.5rem;">
+                <i class="fa-solid fa-history" style="color:var(--success)"></i> Ödeme Geçmişi
+            </h4>
+            <div class="table-responsive" style="max-height:220px; overflow-y:auto">
+                <table style="font-size:0.85rem">
+                    <thead>
+                        <tr>
+                            <th>Ödeme Tarihi</th>
+                            <th>İlgili Fatura</th>
+                            <th style="text-align:right">Ödenen Tutar</th>
+                            <th style="text-align:left">Not / Açıklama</th>
+                            <th>İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${odemeRows || '<tr><td colspan="5" style="text-align:center; color:var(--text-muted)">Henüz ödeme yapılmadı.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    // default date value for quick input
+    const quickDateInput = document.getElementById('quickOdemeTarih');
+    if (quickDateInput) quickDateInput.valueAsDate = new Date();
+
+    toggleModal('tedarikciOdemeListesiModal', true);
+};
+
+window.showQuickOdemeForm = (faturaId, faturaNo, kalan) => {
+    const container = document.getElementById('quickOdemeFormContainer');
+    if (!container) return;
+    document.getElementById('quickOdemeFaturaId').value = faturaId;
+    document.getElementById('quickOdemeFaturaNo').value = faturaNo;
+    document.getElementById('quickOdemeTutar').value = kalan.toFixed(2);
+    document.getElementById('quickOdemeTutar').max = kalan;
+    
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+};
+
+window.cancelQuickOdeme = () => {
+    const container = document.getElementById('quickOdemeFormContainer');
+    if (container) container.style.display = 'none';
+};
+
+window.saveQuickOdeme = async (e) => {
+    e.preventDefault();
+    const faturaId = document.getElementById('quickOdemeFaturaId').value;
+    const tutar = parseFloat(document.getElementById('quickOdemeTutar').value) || 0;
+    const tarih = document.getElementById('quickOdemeTarih').value;
+    const not = document.getElementById('quickOdemeNot').value || '';
+    const vkn = window.activeSupplierVkn;
+
+    if (!vkn || !faturaId || tutar <= 0 || !tarih) {
+        showToast('Lütfen tüm alanları doğru doldurun!', 'error'); return;
+    }
+
+    const fatura = allFaturalar.find(f => f.id === faturaId);
+    if (!fatura) { showToast('Fatura bulunamadı!', 'error'); return; }
+
+    try {
+        const now = new Date().toISOString();
+        // Record payment
+        await db.collection(FATURA_ODEME_COLLECTION).add({
+            faturaId,
+            faturaNo: fatura.faturaNo || '',
+            supplierVkn: vkn,
+            supplierName: fatura.supplierName || '',
+            amount: tutar,
+            date: tarih,
+            note: not,
+            createdAt: now
+        });
+
+        // Update Tedarikçi paidAmount
+        const ted = allTedarikciler.find(t => t.vkn === vkn);
+        if (ted) {
+            const paidTotal = allFaturaOdemeler
+                .filter(o => o.supplierVkn === vkn)
+                .reduce((s, o) => s + (o.amount || 0), 0) + tutar;
+            await db.collection(TEDARIKCI_COLLECTION).doc(ted.id).update({
+                paidAmount: paidTotal,
+                updatedAt: now
+            });
+        }
+
+        // Update Fatura paidAmount and status
+        const allPaid = allFaturaOdemeler
+            .filter(o => o.faturaId === faturaId)
+            .reduce((s, o) => s + (o.amount || 0), 0) + tutar;
+        const kalan = (fatura.totalAmount || 0) - allPaid;
+        const newStatus = kalan <= 0 ? 'ODENDI' : (allPaid > 0 ? 'KISMI' : 'ODENMEDI');
+        await db.collection(FATURA_COLLECTION).doc(faturaId).update({
+            paidAmount: allPaid,
+            status: newStatus,
+            updatedAt: now
+        });
+
+        showToast(`✅ ${formatCurrency(tutar)} TL ödeme kaydedildi.`);
+        window.cancelQuickOdeme();
+    } catch (err) {
+        console.error(err);
+        showToast('Ödeme kaydedilirken hata oluştu!', 'error');
+    }
+};
+
+window.deleteOdeme = async (odemeId, faturaId, supplierVkn, amount) => {
+    if (!confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?')) return;
+    try {
+        const now = new Date().toISOString();
+        
+        // 1. Delete payment document
+        await db.collection(FATURA_ODEME_COLLECTION).doc(odemeId).delete();
+        
+        // 2. Update Tedarikçi paidAmount
+        const ted = allTedarikciler.find(t => t.vkn === supplierVkn);
+        if (ted) {
+            const remainingPaidForSupplier = allFaturaOdemeler
+                .filter(o => o.supplierVkn === supplierVkn && o.id !== odemeId)
+                .reduce((sum, o) => sum + (o.amount || 0), 0);
+            await db.collection(TEDARIKCI_COLLECTION).doc(ted.id).update({
+                paidAmount: remainingPaidForSupplier,
+                updatedAt: now
+            });
+        }
+        
+        // 3. Update Fatura paidAmount and status
+        const fatura = allFaturalar.find(f => f.id === faturaId);
+        if (fatura) {
+            const remainingPaidForFatura = allFaturaOdemeler
+                .filter(o => o.faturaId === faturaId && o.id !== odemeId)
+                .reduce((sum, o) => sum + (o.amount || 0), 0);
+            const kalan = (fatura.totalAmount || 0) - remainingPaidForFatura;
+            const newStatus = kalan <= 0 ? 'ODENDI' : (remainingPaidForFatura > 0 ? 'KISMI' : 'ODENMEDI');
+            
+            await db.collection(FATURA_COLLECTION).doc(faturaId).update({
+                paidAmount: remainingPaidForFatura,
+                status: newStatus,
+                updatedAt: now
+            });
+        }
+        
+        showToast('Ödeme kaydı silindi.', 'success');
+    } catch (err) {
+        console.error(err);
+        showToast('Ödeme silinirken hata oluştu!', 'error');
+    }
 };
 
 // ── initApp'e entegre et ───────────────────────────────────────────────────
