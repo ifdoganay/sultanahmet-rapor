@@ -447,7 +447,15 @@ const saveRecord = async (rec) => {
 const saveStokRecord = async (rec) => {
     try {
         await db.collection(STOK_COLLECTION).doc(rec.id).set(rec, { merge: true });
-        showToast('Stok çıkışı başarıyla kaydedildi ✓');
+        let msg = 'Stok kaydı başarıyla güncellendi ✓';
+        if (rec.type === 'IN') {
+            msg = 'Stok girişi başarıyla kaydedildi ✓';
+        } else if (rec.type === 'OUT') {
+            msg = 'Stok çıkışı başarıyla kaydedildi ✓';
+        } else if (rec.type === 'COUNT') {
+            msg = 'Stok sayımı başarıyla kaydedildi ✓';
+        }
+        showToast(msg);
     } catch (e) {
         console.error(e);
         showToast('Stok kaydı sırasında hata!', 'error');
@@ -2470,6 +2478,7 @@ document.getElementById('dailyUretimForm')?.addEventListener('submit', async (e)
     try {
         let totalCost = 0;
         const batch = db.batch();
+        const uretimRef = db.collection(URETIM_COLLECTION).doc();
 
         // Her malzeme için stoktan düş ve maliyet hesapla
         for(const ing of recipe.ingredients) {
@@ -2486,12 +2495,12 @@ document.getElementById('dailyUretimForm')?.addEventListener('submit', async (e)
                 type: 'OUT',
                 amount: requiredAmount,
                 notes: `${productName} üretimi için reçeteden düşüldü`,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                uretimId: uretimRef.id
             });
         }
 
         // Üretim günlüğü ekle
-        const uretimRef = db.collection(URETIM_COLLECTION).doc();
         batch.set(uretimRef, {
             date,
             productName,
@@ -2507,11 +2516,25 @@ document.getElementById('dailyUretimForm')?.addEventListener('submit', async (e)
 });
 
 window.deleteUretim = async (id) => {
-    if(!confirm('Bu üretim kaydını silmek istiyor musunuz? (Not: Stok hareketleri geri alınmaz)')) return;
+    if(!confirm('Bu üretim kaydını silmek istiyor musunuz? (Bağlı stok hareketleri de silinecektir)')) return;
     try {
-        await db.collection(URETIM_COLLECTION).doc(id).delete();
-        showToast('Üretim kaydı silindi.');
-    } catch (e) { showToast('Hata!', 'error'); }
+        const batch = db.batch();
+        
+        // Üretim kaydını sil
+        batch.delete(db.collection(URETIM_COLLECTION).doc(id));
+        
+        // Bağlı stok hareketlerini bul ve sil
+        const stokSnap = await db.collection(STOK_COLLECTION).where('uretimId', '==', id).get();
+        stokSnap.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        showToast('Üretim kaydı ve bağlı stok hareketleri silindi.');
+    } catch (e) { 
+        console.error(e);
+        showToast('Hata!', 'error'); 
+    }
 };
 
 const initUretim = () => {
