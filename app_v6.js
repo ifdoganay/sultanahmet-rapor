@@ -41,6 +41,14 @@ const formatDate = (dateString) => {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
 };
 
+const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 // ── AUTH LOGIC ────────────────────────────────────────────────
 const checkAuth = () => {
     const saved = localStorage.getItem('sultanahmet_user');
@@ -1050,7 +1058,7 @@ document.getElementById('dataForm').addEventListener('submit', async (e) => {
     };
     await saveRecord(rec);
     document.getElementById('dataForm').reset();
-    document.getElementById('inputDate').valueAsDate = new Date();
+    document.getElementById('inputDate').value = getLocalDateString();
     recalcForm();
 });
 document.getElementById('stokForm').addEventListener('submit', async (e) => {
@@ -1179,7 +1187,7 @@ document.getElementById('stokSearch').addEventListener('input', (e) => {
     });
 });
 
-document.getElementById('inputStokDate').valueAsDate = new Date();
+document.getElementById('inputStokDate').value = getLocalDateString();
 
 // ── FILE UPLOAD ────────────────────────────────────────────────
 const dropZone    = document.getElementById('dropZone');
@@ -1289,13 +1297,16 @@ const parseDataFromText = (text, filename) => {
     const robotNakit = normalNakit + mobilNakit;
     const robotKredi = normalKredi + mobilKredi;
 
-    // Tarih ayıklama (dosya adından: 01.04.2026.pdf)
-    let dateObj = new Date();
-    const dm = filename.match(/(\d{1,2})[.\-](\d{1,2})[.\-](\d{4})/);
+    // Tarih ayıklama (dosya adından: 01.04.2026.pdf veya 01.04.26.pdf)
+    let dateISO = getLocalDateString();
+    const dm = filename.match(/(\d{1,2})[.\-](\d{1,2})[.\-](\d{2,4})/);
     if (dm) {
-        dateObj = new Date(`${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`);
+        let yr = dm[3];
+        if (yr.length === 2) {
+            yr = "20" + yr;
+        }
+        dateISO = `${yr}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`;
     }
-    const dateISO = dateObj.toISOString().split('T')[0];
 
     // Debug log
     console.log(`PDF Parse: Nakit=${normalNakit}+${mobilNakit}=${robotNakit}, Kredi=${normalKredi}+${mobilKredi}=${robotKredi}, Yemek=${yemekKartlari}, Cari=${onlineCari}`);
@@ -2774,10 +2785,14 @@ const parseSalesExcel = async (file) => {
                 console.log('Raw Excel Rows:', rows);
 
                 // Dosya adından tarih çekme
-                let fileDate = new Date().toISOString().split('T')[0];
-                const dateMatch = file.name.match(/(\d{1,2})[.\-](\d{1,2})[.\-](\d{4})/);
+                let fileDate = getLocalDateString();
+                const dateMatch = file.name.match(/(\d{1,2})[.\-](\d{1,2})[.\-](\d{2,4})/);
                 if (dateMatch) {
-                    fileDate = `${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`;
+                    let yr = dateMatch[3];
+                    if (yr.length === 2) {
+                        yr = "20" + yr;
+                    }
+                    fileDate = `${yr}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`;
                 }
 
                 const results = [];
@@ -2993,7 +3008,7 @@ const initFaturaModule = () => {
     });
     // Ödeme tarihi default
     const odemeT = document.getElementById('odemeTarih');
-    if (odemeT) odemeT.valueAsDate = new Date();
+    if (odemeT) odemeT.value = getLocalDateString();
 };
 
 // initApp içine entegre et
@@ -3277,7 +3292,7 @@ window.saveOdeme = async (e) => {
 
         showToast(`✅ ${formatCurrency(tutar)} TL ödeme kaydedildi.`);
         document.getElementById('odemeForm').reset();
-        document.getElementById('odemeTarih').valueAsDate = new Date();
+        document.getElementById('odemeTarih').value = getLocalDateString();
         document.getElementById('odemeFaturaSelect').innerHTML = '<option value="">Önce tedarikçi seçin...</option>';
     } catch (err) {
         console.error(err);
@@ -3648,7 +3663,7 @@ window.showTedarikciOdemeListesi = (supplierVkn) => {
 
     // default date value for quick input
     const quickDateInput = document.getElementById('quickOdemeTarih');
-    if (quickDateInput) quickDateInput.valueAsDate = new Date();
+    if (quickDateInput) quickDateInput.value = getLocalDateString();
 
     toggleModal('tedarikciOdemeListesiModal', true);
 };
