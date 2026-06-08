@@ -3366,6 +3366,35 @@ window.exportOdemeListesiExcel = () => {
     rows.sort((a, b) => b['Ödeme Yapılacak Tutar (TL)'] - a['Ödeme Yapılacak Tutar (TL)']);
 
     const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Hedef kolon harfini bul (Ödeme Yapılacak Tutar (TL))
+    let targetColLetter = 'G';
+    const colNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+    for (const c of colNames) {
+        if (ws[c + '1'] && ws[c + '1'].v === 'Ödeme Yapılacak Tutar (TL)') {
+            targetColLetter = c;
+            break;
+        }
+    }
+
+    // Sadece veri satırları (row > 1) için kalın kırmızı stil uygula
+    for (let key in ws) {
+        if (key[0] === '!') continue;
+        const col = key.replace(/[0-9]/g, '');
+        const row = parseInt(key.replace(/[^0-9]/g, ''));
+        
+        if (col === targetColLetter && row > 1) {
+            ws[key].s = {
+                font: {
+                    name: 'Arial',
+                    sz: 10,
+                    bold: true,
+                    color: { rgb: "FF0000" } // Kırmızı
+                }
+            };
+        }
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Ödeme Listesi');
     XLSX.writeFile(wb, `Odeme_Listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
