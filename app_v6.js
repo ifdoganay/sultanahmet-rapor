@@ -3367,6 +3367,22 @@ window.exportOdemeListesiExcel = () => {
 
     const ws = XLSX.utils.json_to_sheet(rows);
 
+    // Auto-fit column widths based on maximum text length
+    const cols = [];
+    const headers = Object.keys(rows[0] || {});
+    headers.forEach((h) => {
+        let maxLen = h.toString().length;
+        rows.forEach(r => {
+            const val = r[h];
+            if (val !== null && val !== undefined) {
+                let valStr = typeof val === 'number' ? formatCurrency(val) : val.toString();
+                if (valStr.length > maxLen) maxLen = valStr.length;
+            }
+        });
+        cols.push({ wch: maxLen + 5 });
+    });
+    ws['!cols'] = cols;
+
     // Hedef kolon harfini bul (Ödeme Yapılacak Tutar (TL))
     let targetColLetter = 'G';
     const colNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
@@ -3377,20 +3393,49 @@ window.exportOdemeListesiExcel = () => {
         }
     }
 
-    // Sadece veri satırları (row > 1) için kalın kırmızı stil uygula
+    // Tüm hücrelere kenarlık ekle ve stillerini belirle
     for (let key in ws) {
         if (key[0] === '!') continue;
         const col = key.replace(/[0-9]/g, '');
         const row = parseInt(key.replace(/[^0-9]/g, ''));
         
-        if (col === targetColLetter && row > 1) {
+        const thinBorder = {
+            top: { style: "thin", color: { rgb: "D1D5DB" } },
+            bottom: { style: "thin", color: { rgb: "D1D5DB" } },
+            left: { style: "thin", color: { rgb: "D1D5DB" } },
+            right: { style: "thin", color: { rgb: "D1D5DB" } }
+        };
+
+        if (row === 1) {
+            // Başlık satırı
+            ws[key].s = {
+                font: { name: 'Arial', sz: 10, bold: true, color: { rgb: "111827" } },
+                fill: { fgColor: { rgb: "E5E7EB" } }, // Açık gri arka plan
+                alignment: { horizontal: "center", vertical: "center" },
+                border: {
+                    top: { style: "thin", color: { rgb: "9CA3AF" } },
+                    bottom: { style: "medium", color: { rgb: "9CA3AF" } },
+                    left: { style: "thin", color: { rgb: "9CA3AF" } },
+                    right: { style: "thin", color: { rgb: "9CA3AF" } }
+                }
+            };
+        } else {
+            // Veri satırları
+            const isTargetCol = (col === targetColLetter);
+            const isNumberCol = (col === 'E' || col === 'F' || col === 'G');
+
             ws[key].s = {
                 font: {
                     name: 'Arial',
                     sz: 10,
-                    bold: true,
-                    color: { rgb: "FF0000" } // Kırmızı
-                }
+                    bold: isTargetCol,
+                    color: { rgb: isTargetCol ? "FF0000" : "374151" }
+                },
+                alignment: { 
+                    horizontal: isNumberCol ? "right" : "left", 
+                    vertical: "center" 
+                },
+                border: thinBorder
             };
         }
     }
