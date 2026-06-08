@@ -776,6 +776,11 @@ const processStokData = () => {
 
     renderStokStatus(status);
     
+    // Son kullanma tarihi uyarısını tetikle
+    if (window.checkProductExpirations) {
+        window.checkProductExpirations(status);
+    }
+    
     // Filtreleme mantığı
     const pSearch = document.getElementById('filterHareketUrun')?.value.toLowerCase() || '';
     const tSearch = document.getElementById('filterHareketTip')?.value || '';
@@ -814,7 +819,7 @@ const renderStokStatus = (status) => {
             unit: s.unit,
             stock: s.balance,
             price: s.price,
-            category: '', // Add if needed
+            category: '',
             status: s.isActive ? 'ACTIVE' : 'PASSIVE'
         });
 
@@ -829,6 +834,15 @@ const renderStokStatus = (status) => {
 
         const tr = document.createElement('tr');
         tr.style.opacity = s.isActive ? '1' : '0.5';
+
+        // SKT Bilgisini al ve son kullanma tarihinin geçip geçmediğini kontrol et
+        const prod = allProducts[slug];
+        const sktStr = prod && prod.skt ? formatDate(prod.skt) : '-';
+        const todayStr = new Date().toISOString().split('T')[0];
+        const isExpired = prod && prod.skt && prod.skt <= todayStr && s.balance > 0;
+        const sktHtml = isExpired 
+            ? `<span style="color:var(--danger); font-weight:700;" title="Son Kullanma Tarihi Geçmiş!">${sktStr} ⚠️</span>`
+            : sktStr;
 
         let actionHtml = '';
         if (isAdmin) {
@@ -857,6 +871,7 @@ const renderStokStatus = (status) => {
             <td class="toplam-col">${formatCurrency(rowVal)}</td>
             <td style="color:var(--success)">+${s.in}</td>
             <td style="color:var(--danger)">-${s.out}</td>
+            <td>${sktHtml}</td>
             <td style="color:var(--text-muted)">${s.count} (${formatDate(s.lastCountDate)})</td>
             ${actionHtml}
         `;
@@ -1030,8 +1045,6 @@ document.getElementById('dataForm').addEventListener('submit', async (e) => {
     document.getElementById('inputDate').valueAsDate = new Date();
     recalcForm();
 });
-document.getElementById('inputDate').valueAsDate = new Date();
-
 document.getElementById('stokForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const date = document.getElementById('inputStokDate').value;
@@ -1041,18 +1054,20 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     const amount = parseFloat(document.getElementById('inputStokAmount').value) || 0;
     const price  = parseFloat(document.getElementById('inputStokPrice').value) || 0;
     const unit   = document.getElementById('inputStokUnit').value.trim().toUpperCase('tr-TR');
+    const skt    = document.getElementById('inputStokSkt')?.value || '';
     
     if (!date || !productName || amount < 0) return;
 
     const productSlug = productName.replace(/\s+/g, '');
     
-    // 1. Ürün bilgilerini (fiyat, birim, barkod) güncelle
-    if (price > 0 || unit || barcode || !allProducts[productSlug]) {
+    // 1. Ürün bilgilerini (fiyat, birim, barkod, skt) güncelle
+    if (price > 0 || unit || barcode || skt || !allProducts[productSlug]) {
         await db.collection(PRODUCT_COLLECTION).doc(productSlug).set({
             name: productName,
             barcode: barcode || (allProducts[productSlug] ? (allProducts[productSlug].barcode || '') : ''),
             price: price || (allProducts[productSlug] ? allProducts[productSlug].price : 0),
             unit: unit || (allProducts[productSlug] ? (allProducts[productSlug].unit || '') : ''),
+            skt: skt || (allProducts[productSlug] ? (allProducts[productSlug].skt || '') : ''),
             isActive: allProducts[productSlug] ? (allProducts[productSlug].isActive !== false) : true,
             updatedAt: new Date().toISOString()
         }, { merge: true });
@@ -1079,6 +1094,7 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     document.getElementById('inputStokAmount').value = '';
     document.getElementById('inputStokPrice').value  = '';
     document.getElementById('inputStokUnit').value   = '';
+    if (document.getElementById('inputStokSkt')) document.getElementById('inputStokSkt').value = '';
     document.getElementById('inputStokBarcode').focus();
 });
 
@@ -1091,15 +1107,10 @@ window.editProductName = (oldName) => {
     document.getElementById('editProductBarcode').value = product ? (product.barcode || '') : '';
     document.getElementById('editProductUnit').value = product ? (product.unit || '') : '';
     document.getElementById('editProductPrice').value = product ? (product.price || 0) : 0;
+    document.getElementById('editProductSkt').value = product ? (product.skt || '') : '';
     
     toggleModal('productEditModal', true);
 };
-
-document.getElementById('btnScanEditBarcode')?.addEventListener('click', async () => {
-    // startScanner fonksiyonu yukarıda initApp içinde tanımlı olduğu için 
-    // buradaki eski dinleyiciyi silebiliriz veya startScanner'ı global yapabiliriz.
-    // Ancak initApp içinde zaten btnScanEditBarcode için dinleyici ekledik.
-});
 
 document.getElementById('productEditForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1108,6 +1119,7 @@ document.getElementById('productEditForm')?.addEventListener('submit', async (e)
     const barcode = document.getElementById('editProductBarcode').value.trim();
     const unit = document.getElementById('editProductUnit').value.trim().toUpperCase('tr-TR');
     const price = parseFloat(document.getElementById('editProductPrice').value) || 0;
+    const skt = document.getElementById('editProductSkt').value;
 
     if (!newName) return;
 
@@ -1124,6 +1136,7 @@ document.getElementById('productEditForm')?.addEventListener('submit', async (e)
             barcode: barcode,
             unit: unit,
             price: price,
+            skt: skt,
             isActive: oldProd ? (oldProd.isActive !== false) : true,
             updatedAt: new Date().toISOString()
         };
@@ -3750,3 +3763,46 @@ if (_faturaToggleBtn) {
         }
     });
 }
+
+// ── Son Kullanma Tarihi Kontrol ve Uyarı Sistemi ───────────────────────────
+window.sktAlertShown = false;
+
+window.checkProductExpirations = (status) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const expiredProducts = [];
+
+    Object.keys(status).forEach(slug => {
+        const s = status[slug];
+        const prod = allProducts[slug];
+        if (prod && prod.skt && s.balance > 0) {
+            // Compare dates: expired if skt is less than or equal to today
+            if (prod.skt <= todayStr) {
+                expiredProducts.push({
+                    name: s.name,
+                    skt: prod.skt,
+                    balance: s.balance,
+                    unit: s.unit || 'Birim'
+                });
+            }
+        }
+    });
+
+    if (expiredProducts.length > 0 && !window.sktAlertShown) {
+        const body = document.getElementById('sktUyariBody');
+        if (body) {
+            body.innerHTML = expiredProducts.map(p => `
+                <tr>
+                    <td style="font-weight:600; text-align:left; color:#f8fafc;">${p.name}</td>
+                    <td style="color:#ef4444; font-weight:700; text-align:center;">${formatDate(p.skt)}</td>
+                    <td style="text-align:right; font-weight:700; color:#f8fafc;">${p.balance} ${p.unit}</td>
+                </tr>
+            `).join('');
+
+            const modal = document.getElementById('sktUyariModal');
+            if (modal && modal.classList.contains('hidden')) {
+                toggleModal('sktUyariModal', true);
+                window.sktAlertShown = true;
+            }
+        }
+    }
+};
