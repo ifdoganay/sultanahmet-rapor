@@ -2604,6 +2604,13 @@ const renderSales = () => {
     const countEl = document.getElementById('satisRecordCount');
     if (countEl) countEl.textContent = `${filtered.length} Kayıt`;
 
+    // Toplam Satış Miktarı
+    const totalAmount = filtered.reduce((sum, s) => sum + (s.amount || 0), 0);
+    const totalEl = document.getElementById('satisTotalAmount');
+    if (totalEl) {
+        totalEl.textContent = `Toplam Satış: ${totalAmount.toLocaleString('tr-TR')} Adet`;
+    }
+
     // Boş durum
     const emptyEl = document.getElementById('satisEmptyState');
     const tableEl = document.getElementById('salesTable');
