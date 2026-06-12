@@ -2566,6 +2566,21 @@ const initUretim = () => {
 };
 
 // ── SALES & MAMUL STOK LOGIC ──────────────────────────────────
+let filteredSales = [];
+
+function mapTurkishChars(str) {
+    if (!str) return '';
+    const charMap = {
+        'ş': 's', 'Ş': 'S',
+        'ı': 'i', 'İ': 'I',
+        'ğ': 'g', 'Ğ': 'G',
+        'ü': 'u', 'Ü': 'U',
+        'ö': 'o', 'Ö': 'O',
+        'ç': 'c', 'Ç': 'C'
+    };
+    return str.split('').map(c => charMap[c] || c).join('');
+}
+
 const renderSales = () => {
     const body = document.getElementById('salesTableBody');
     const select = document.getElementById('salesProductSelect');
@@ -2599,6 +2614,8 @@ const renderSales = () => {
         if (sortMode === 'name_desc') return (b.productName||'').localeCompare(a.productName||'', 'tr') || a.date.localeCompare(b.date);
         return 0;
     });
+
+    filteredSales = filtered;
 
     // Kayıt sayısı
     const countEl = document.getElementById('satisRecordCount');
@@ -2639,6 +2656,10 @@ const renderSales = () => {
         `;
         body.appendChild(tr);
     });
+
+    if (document.getElementById('satisOzetWrapper') && !document.getElementById('satisOzetWrapper').classList.contains('hidden')) {
+        renderSalesSummary();
+    }
 };
 
 
@@ -2699,6 +2720,207 @@ window.deleteSale = async (id) => {
         showToast('Satış kaydı silindi.');
     } catch (e) { showToast('Hata!', 'error'); }
 };
+
+// ── SATIŞ ÖZET TABLOSU MANTISI ───────────────────────────────────
+window.toggleSalesSummary = () => {
+    const wrapper = document.getElementById('satisOzetWrapper');
+    const btn = document.getElementById('btnToggleSatisOzet');
+    if (!wrapper || !btn) return;
+    
+    const isHidden = wrapper.classList.contains('hidden');
+    if (isHidden) {
+        wrapper.classList.remove('hidden');
+        btn.innerHTML = '<i class="fa-solid fa-chart-simple"></i> Özet Tablo Gizle';
+        btn.style.background = 'rgba(59,130,246,0.15)';
+        renderSalesSummary();
+    } else {
+        wrapper.classList.add('hidden');
+        btn.innerHTML = '<i class="fa-solid fa-chart-simple"></i> Özet Tablo Göster';
+        btn.style.background = 'transparent';
+    }
+};
+
+const getSalesSummary = () => {
+    const summaryMap = {};
+    filteredSales.forEach(s => {
+        const name = s.productName || 'BİLİNMEYEN ÜRÜN';
+        summaryMap[name] = (summaryMap[name] || 0) + (s.amount || 0);
+    });
+    return Object.keys(summaryMap).map(name => ({
+        productName: name,
+        totalAmount: summaryMap[name]
+    })).sort((a, b) => b.totalAmount - a.totalAmount);
+};
+
+const renderSalesSummary = () => {
+    const body = document.getElementById('salesSummaryTableBody');
+    if (!body) return;
+    body.innerHTML = '';
+    
+    const summary = getSalesSummary();
+    if (summary.length === 0) {
+        body.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:1rem;">Kayıt yok.</td></tr>';
+        return;
+    }
+    
+    summary.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="text-align:left; font-weight:700">${item.productName}</td>
+            <td style="text-align:right; font-weight:800; color:var(--success)">${item.totalAmount.toLocaleString('tr-TR')} Adet</td>
+        `;
+        body.appendChild(tr);
+    });
+};
+
+document.getElementById('btnSatisOzetExportExcel')?.addEventListener('click', () => {
+    const summary = getSalesSummary();
+    if (!summary.length) return alert('İndirilecek özet veri yok!');
+    const rows = summary.map(item => ({
+        'Ürün Adı': item.productName,
+        'Toplam Satış Miktarı (Adet)': item.totalAmount
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(rows);
+    
+    // Auto-fit column widths
+    const cols = [];
+    const headers = Object.keys(rows[0] || {});
+    headers.forEach((h) => {
+        let maxLen = h.toString().length;
+        rows.forEach(r => {
+            const val = r[h];
+            if (val !== null && val !== undefined) {
+                let valStr = val.toString();
+                if (valStr.length > maxLen) maxLen = valStr.length;
+            }
+        });
+        cols.push({ wch: maxLen + 5 });
+    });
+    ws['!cols'] = cols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Satış Özet');
+    XLSX.writeFile(wb, `Satis_Ozeti_${new Date().toISOString().split('T')[0]}.xlsx`);
+});
+
+document.getElementById('btnSatisOzetExportPDF')?.addEventListener('click', () => {
+    const summary = getSalesSummary();
+    if (!summary.length) return alert('İndirilecek özet veri yok!');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    // Başlık
+    doc.setFontSize(14);
+    doc.text(mapTurkishChars('Ürün Bazlı Satış Özet Raporu'), 14, 15);
+    
+    // Alt başlık / Tarih aralığı
+    const startDate = document.getElementById('filterSatisStart')?.value;
+    const endDate = document.getElementById('filterSatisEnd')?.value;
+    let filterText = 'Filtrelenen Tüm Kayıtlar';
+    if (startDate || endDate) {
+        filterText = `Tarih Aralığı: ${startDate ? formatDate(startDate) : 'Başlangıçtan'} - ${endDate ? formatDate(endDate) : 'Bugüne'}`;
+    }
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text(mapTurkishChars(filterText), 14, 21);
+    
+    const rows = summary.map(item => [
+        mapTurkishChars(item.productName),
+        mapTurkishChars(`${item.totalAmount} Adet`)
+    ]);
+    
+    doc.autoTable({
+        startY: 26,
+        head: [[mapTurkishChars('Ürün Adı'), mapTurkishChars('Toplam Satış Miktarı')]],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
+        styles: { fontSize: 9 }
+    });
+    doc.save(`Satis_Ozeti_${new Date().toISOString().split('T')[0]}.pdf`);
+});
+
+// ── SATIŞ EXPORT ────────────────────────────────────────────────
+document.getElementById('btnSatisExportExcel')?.addEventListener('click', () => {
+    if (!filteredSales.length) return alert('İndirilecek satış verisi yok!');
+    const rows = filteredSales.map(s => {
+        let sourceText = 'Manuel';
+        if (s.source === 'RESERV') sourceText = 'Rezervasyon';
+        if (s.source === 'EXCEL')  sourceText = 'Excel Aktarımı';
+        
+        return {
+            'Tarih': formatDate(s.date),
+            'Ürün Adı': s.productName || '',
+            'Miktar (Adet)': s.amount || 0,
+            'Kaynak': sourceText
+        };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    
+    // Auto-fit column widths based on maximum text length
+    const cols = [];
+    const headers = Object.keys(rows[0] || {});
+    headers.forEach((h) => {
+        let maxLen = h.toString().length;
+        rows.forEach(r => {
+            const val = r[h];
+            if (val !== null && val !== undefined) {
+                let valStr = val.toString();
+                if (valStr.length > maxLen) maxLen = valStr.length;
+            }
+        });
+        cols.push({ wch: maxLen + 5 });
+    });
+    ws['!cols'] = cols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Satışlar');
+    XLSX.writeFile(wb, `Satis_Raporu_${new Date().toISOString().split('T')[0]}.xlsx`);
+});
+
+document.getElementById('btnSatisExportPDF')?.addEventListener('click', () => {
+    if (!filteredSales.length) return alert('İndirilecek satış verisi yok!');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    // Başlık
+    doc.setFontSize(14);
+    doc.text(mapTurkishChars('Satış Kayıtları Raporu'), 14, 15);
+    
+    // Alt başlık / Tarih aralığı
+    const startDate = document.getElementById('filterSatisStart')?.value;
+    const endDate = document.getElementById('filterSatisEnd')?.value;
+    let filterText = 'Filtrelenen Tüm Kayıtlar';
+    if (startDate || endDate) {
+        filterText = `Tarih Aralığı: ${startDate ? formatDate(startDate) : 'Başlangıçtan'} - ${endDate ? formatDate(endDate) : 'Bugüne'}`;
+    }
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text(mapTurkishChars(filterText), 14, 21);
+    
+    const rows = filteredSales.map(s => {
+        let sourceText = 'Manuel';
+        if (s.source === 'RESERV') sourceText = 'Rezervasyon';
+        if (s.source === 'EXCEL')  sourceText = 'Excel Aktarımı';
+        return [
+            formatDate(s.date),
+            mapTurkishChars(s.productName || ''),
+            mapTurkishChars(`${s.amount} Adet`),
+            mapTurkishChars(sourceText)
+        ];
+    });
+    
+    doc.autoTable({
+        startY: 26,
+        head: [[mapTurkishChars('Tarih'), mapTurkishChars('Ürün Adı'), mapTurkishChars('Miktar'), mapTurkishChars('Kaynak')]],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
+        styles: { fontSize: 9 }
+    });
+    doc.save(`Satis_Raporu_${new Date().toISOString().split('T')[0]}.pdf`);
+});
 
 // ── SALES FILE UPLOAD ──────────────────────────────────────────
 const salesDropZone = document.getElementById('salesDropZone');
@@ -3405,12 +3627,12 @@ window.exportOdemeListesiExcel = () => {
         if (kalan > 0) {
             rows.push({
                 'Tedarikçi Adı': t.name || t.id,
-                'VKN': t.vkn || '',
-                'İletişim': [t.tel, t.email].filter(Boolean).join(' | '),
                 'IBAN': t.iban ? t.iban.replace(/(.{4})/g,'$1 ').trim() : '',
-                'Toplam Borç (TL)': t.currentBalance || 0,
+                'Ödeme Yapılacak Tutar (TL)': kalan,
+                'İletişim': [t.tel, t.email].filter(Boolean).join(' | '),
+                'VKN': t.vkn || '',
                 'Ödenen Tutar (TL)': paid,
-                'Ödeme Yapılacak Tutar (TL)': kalan
+                'Toplam Borç (TL)': t.currentBalance || 0
             });
         }
     });
@@ -3440,6 +3662,15 @@ window.exportOdemeListesiExcel = () => {
         cols.push({ wch: maxLen + 5 });
     });
     ws['!cols'] = cols;
+
+    // Page setup to fit all columns to one landscape page width
+    ws['!pageSetup'] = {
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        orientation: 'landscape',
+        paperSize: 9 // A4
+    };
 
     // Hedef kolon harfini bul (Ödeme Yapılacak Tutar (TL))
     let targetColLetter = 'G';
@@ -3480,7 +3711,7 @@ window.exportOdemeListesiExcel = () => {
         } else {
             // Veri satırları
             const isTargetCol = (col === targetColLetter);
-            const isNumberCol = (col === 'E' || col === 'F' || col === 'G');
+            const isNumberCol = (col === 'C' || col === 'F' || col === 'G');
 
             ws[key].s = {
                 font: {
@@ -3500,7 +3731,25 @@ window.exportOdemeListesiExcel = () => {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Ödeme Listesi');
-    XLSX.writeFile(wb, `Odeme_Listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    // Mobile-friendly Blob download with exact Excel MIME type
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+    function s2ab(s) {
+        const buf = new ArrayBuffer(s.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+        return buf;
+    }
+    const blob = new Blob([s2ab(wbout)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Odeme_Listesi_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
     showToast('Ödeme listesi Excel olarak indirildi.', 'success');
 };
 
