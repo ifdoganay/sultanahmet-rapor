@@ -49,6 +49,8 @@ const getLocalDateString = () => {
     return `${year}-${month}-${day}`;
 };
 
+const escapeJsStr = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
 // ── AUTH LOGIC ────────────────────────────────────────────────
 const checkAuth = () => {
     const saved = localStorage.getItem('sultanahmet_user');
@@ -119,7 +121,7 @@ const updateUIVisibility = () => {
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     console.log('Login attempt detected...');
-    const username = document.getElementById('loginUser').value.trim().toLowerCase();
+    const username = document.getElementById('loginUser').value.trim().toLocaleLowerCase('tr-TR');
     const password = document.getElementById('loginPass').value.trim();
     const errorEl = document.getElementById('loginError');
     errorEl.textContent = 'Bağlanılıyor...';
@@ -185,28 +187,26 @@ const renderUserManagement = async () => {
 
     snap.docs.forEach(doc => {
         const u = doc.data();
-        if (u.role === 'admin') return; // Admin satırını gizle
-
+        const isAdminRow = u.role === 'admin';
         const p = u.perms || {};
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="font-weight:700">${doc.id}</td>
+            <td style="font-weight:700; ${isAdminRow ? 'color: var(--primary);' : ''}">${doc.id} ${isAdminRow ? '(Admin)' : ''}</td>
             <td><input type="text" placeholder="Yeni şifre" id="pass_${doc.id}" style="width:110px; padding:5px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:white; font-size:0.8rem;"></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_mali_${doc.id}"       ${p.mali        ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_stok_${doc.id}"       ${p.stok        ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_personel_${doc.id}"   ${p.personel    ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_rez_${doc.id}"        ${p.rezervasyon ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_uretim_${doc.id}"     ${p.uretim      ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_satis_${doc.id}"      ${p.satis       ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_fatura_${doc.id}"     ${p.fatura      ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" id="perm_odeme_${doc.id}"      ${p.odeme       ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_mali_${doc.id}"       ${p.mali || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_stok_${doc.id}"       ${p.stok || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_personel_${doc.id}"   ${p.personel || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_rez_${doc.id}"        ${p.rezervasyon || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_uretim_${doc.id}"     ${p.uretim || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_satis_${doc.id}"      ${p.satis || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_fatura_${doc.id}"     ${p.fatura || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" id="perm_odeme_${doc.id}"      ${p.odeme || isAdminRow ? 'checked' : ''} ${isAdminRow ? 'disabled' : ''}></td>
             <td style="display:flex;gap:0.4rem;align-items:center;">
                 <button class="btn btn-success btn-sm" style="padding:0.3rem 0.7rem; font-size:0.75rem;" onclick="updateUser('${doc.id}')">
                     <i class="fa-solid fa-save"></i> Kaydet
                 </button>
-                <button class="btn btn-danger btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" onclick="deleteUser('${doc.id}')">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
+                ${isAdminRow ? '' : `<button class="btn btn-danger btn-sm" style="padding:0.3rem 0.5rem; font-size:0.75rem;" onclick="deleteUser('${doc.id}')"><i class="fa-solid fa-trash"></i></button>`}
             </td>
         `;
         body.appendChild(tr);
@@ -224,7 +224,7 @@ window.toggleAddUserForm = () => {
 
 window.createUser = async (e) => {
     e.preventDefault();
-    const username = document.getElementById('newUsername').value.trim().toLowerCase();
+    const username = document.getElementById('newUsername').value.trim().toLocaleLowerCase('tr-TR');
     const password = document.getElementById('newUserPassword').value.trim();
 
     if (!username || !password) { showToast('Kullanıcı adı ve şifre zorunlu!', 'error'); return; }
@@ -432,6 +432,7 @@ const initApp = () => {
     // Rezervasyon ve Üretim Modülleri
     initReservations();
     initUretim();
+    ensureFaturaModule();
 };
 
 // Uygulama başlatma
@@ -507,6 +508,11 @@ window.editRecord = (id) => {
 };
 
 window.deleteStokRecord = async (id) => {
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    if (!isAdmin) {
+        showToast('Bu işlem için admin yetkisi gereklidir.', 'error');
+        return;
+    }
     if (!confirm('Bu stok kaydını silmek istediğinize emin misiniz?')) return;
     try {
         await db.collection(STOK_COLLECTION).doc(id).delete();
@@ -751,7 +757,7 @@ const processStokData = () => {
         const pName = m.productName || m.product;
         if (!pName) return;
         
-        const slug = pName.toUpperCase('tr-TR').replace(/\s+/g, '');
+        const slug = pName.toLocaleUpperCase('tr-TR').replace(/\s+/g, '');
         if (!status[slug]) {
              status[slug] = { 
                  name: pName, price: 0, unit: '', 
@@ -798,14 +804,14 @@ const processStokData = () => {
     }
     
     // Filtreleme mantığı
-    const pSearch = document.getElementById('filterHareketUrun')?.value.toLowerCase() || '';
+    const pSearch = document.getElementById('filterHareketUrun')?.value.toLocaleLowerCase('tr-TR') || '';
     const tSearch = document.getElementById('filterHareketTip')?.value || '';
     const sDate = document.getElementById('filterHareketStart')?.value || '1970-01-01';
     const eDate = document.getElementById('filterHareketEnd')?.value || '2099-12-31';
 
     const filteredRecords = allStokData.filter(item => {
         const typeLabel = (item.type === 'IN' ? 'GİRİŞ' : (item.type === 'OUT' ? 'ÇIKIŞ' : 'SAYIM'));
-        if (pSearch && !item.productName.toLowerCase().includes(pSearch)) return false;
+        if (pSearch && !item.productName.toLocaleLowerCase('tr-TR').includes(pSearch)) return false;
         if (tSearch && typeLabel !== tSearch) return false;
         if (item.date < sDate || item.date > eDate) return false;
         return true;
@@ -854,7 +860,7 @@ const renderStokStatus = (status) => {
         // SKT Bilgisini al ve son kullanma tarihinin geçip geçmediğini kontrol et
         const prod = allProducts[slug];
         const sktStr = prod && prod.skt ? formatDate(prod.skt) : '-';
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalDateString();
         const isExpired = prod && prod.skt && prod.skt <= todayStr && s.balance > 0;
         const sktHtml = isExpired 
             ? `<span style="color:var(--danger); font-weight:700;" title="Son Kullanma Tarihi Geçmiş!">${sktStr} ⚠️</span>`
@@ -864,13 +870,13 @@ const renderStokStatus = (status) => {
         if (isAdmin) {
             actionHtml = `
                 <td class="admin-only">
-                    <button class="btn-icon" onclick="editProductName('${s.name}')" title="Ürünü Düzenle" style="color:var(--primary); margin-right:5px;">
+                    <button class="btn-icon" onclick="editProductName('${escapeJsStr(s.name)}', '${escapeJsStr(slug)}')" title="Ürünü Düzenle" style="color:var(--primary); margin-right:5px;">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
-                    <button class="btn-icon" onclick="toggleProductStatus('${slug}', ${s.isActive})" title="${s.isActive ? 'Pasife Al' : 'Aktife Al'}" style="margin-right:5px;">
+                    <button class="btn-icon" onclick="toggleProductStatus('${escapeJsStr(slug)}', ${s.isActive})" title="${s.isActive ? 'Pasife Al' : 'Aktife Al'}" style="margin-right:5px;">
                         <i class="fa-solid ${s.isActive ? 'fa-eye-slash' : 'fa-eye'}"></i>
                     </button>
-                    <button class="btn-icon" onclick="deleteProductMaster('${slug}', '${s.name}')" title="Ürünü Tamamen Sil" style="color:var(--danger);">
+                    <button class="btn-icon" onclick="deleteProductMaster('${escapeJsStr(slug)}', '${escapeJsStr(s.name)}')" title="Ürünü Tamamen Sil" style="color:var(--danger);">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
                 </td>
@@ -878,7 +884,7 @@ const renderStokStatus = (status) => {
         }
 
         tr.innerHTML = `
-            <td style="text-align:left;font-weight:600; cursor:pointer;" onclick="editProductName('${s.name}')" title="Düzenlemek için tıklayın">
+            <td style="text-align:left;font-weight:600; cursor:pointer;" onclick="editProductName('${escapeJsStr(s.name)}', '${escapeJsStr(slug)}')" title="Düzenlemek için tıklayın">
                 ${s.name} <i class="fa-solid fa-pen-to-square" style="font-size:0.7rem; opacity:0.5"></i>
             </td>
             <td style="font-size:0.8rem; color:var(--text-muted)">${s.unit || '-'}</td>
@@ -921,6 +927,11 @@ window.toggleProductStatus = async (slug, currentStatus) => {
 };
 
 window.deleteProductMaster = async (slug, name) => {
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    if (!isAdmin) {
+        showToast('Bu işlem için admin yetkisi gereklidir.', 'error');
+        return;
+    }
     if (!confirm(`${name} isimli ürünü ve tüm hareket geçmişini silmek istediğinize emin misiniz?`)) return;
     try {
         const batch = db.batch();
@@ -938,6 +949,7 @@ window.deleteProductMaster = async (slug, name) => {
 };
 
 const renderStokTable = (data) => {
+    const isAdmin = currentUser && currentUser.role === 'admin';
     const body       = document.getElementById('stokTableBody');
     const emptyState = document.getElementById('stokEmptyState');
     const table      = document.getElementById('stokTable');
@@ -963,9 +975,11 @@ const renderStokTable = (data) => {
             <td style="text-align:left;font-weight:600">${item.productName}</td>
             <td class="currency" style="font-weight:700">${item.type === 'OUT' ? '-' : (item.type === 'IN' ? '+' : '=')}${item.amount}</td>
             <td>
+                ${isAdmin ? `
                 <button class="btn-icon" onclick="deleteStokRecord('${item.id}')" title="Sil">
                     <i class="fa-solid fa-trash"></i>
                 </button>
+                ` : '-'}
             </td>
         `;
         body.appendChild(tr);
@@ -1066,10 +1080,10 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     const date = document.getElementById('inputStokDate').value;
     const type = document.getElementById('inputStokType').value;
     const barcode = document.getElementById('inputStokBarcode').value.trim();
-    const productName = document.getElementById('inputStokProduct').value.trim().toUpperCase('tr-TR');
+    const productName = document.getElementById('inputStokProduct').value.trim().toLocaleUpperCase('tr-TR');
     const amount = parseFloat(document.getElementById('inputStokAmount').value) || 0;
     const price  = parseFloat(document.getElementById('inputStokPrice').value) || 0;
-    const unit   = document.getElementById('inputStokUnit').value.trim().toUpperCase('tr-TR');
+    const unit   = document.getElementById('inputStokUnit').value.trim().toLocaleUpperCase('tr-TR');
     const skt    = document.getElementById('inputStokSkt')?.value || '';
     
     if (!date || !productName || amount < 0) return;
@@ -1114,11 +1128,12 @@ document.getElementById('stokForm').addEventListener('submit', async (e) => {
     document.getElementById('inputStokBarcode').focus();
 });
 
-window.editProductName = (oldName) => {
-    const oldSlug = oldName.toUpperCase('tr-TR').replace(/\s+/g, '');
+window.editProductName = (oldName, oldSlug) => {
+    if (!oldSlug) oldSlug = oldName.toLocaleUpperCase('tr-TR').replace(/\s+/g, '');
     const product = allProducts[oldSlug];
     
     document.getElementById('editProductOldName').value = oldName;
+    document.getElementById('editProductOldSlug').value = oldSlug;
     document.getElementById('editProductNameInput').value = oldName;
     document.getElementById('editProductBarcode').value = product ? (product.barcode || '') : '';
     document.getElementById('editProductUnit').value = product ? (product.unit || '') : '';
@@ -1131,15 +1146,15 @@ window.editProductName = (oldName) => {
 document.getElementById('productEditForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const oldName = document.getElementById('editProductOldName').value;
-    const newName = document.getElementById('editProductNameInput').value.trim().toUpperCase('tr-TR');
+    const newName = document.getElementById('editProductNameInput').value.trim().toLocaleUpperCase('tr-TR');
     const barcode = document.getElementById('editProductBarcode').value.trim();
-    const unit = document.getElementById('editProductUnit').value.trim().toUpperCase('tr-TR');
+    const unit = document.getElementById('editProductUnit').value.trim().toLocaleUpperCase('tr-TR');
     const price = parseFloat(document.getElementById('editProductPrice').value) || 0;
     const skt = document.getElementById('editProductSkt').value;
 
     if (!newName) return;
 
-    const oldSlug = oldName.toUpperCase('tr-TR').replace(/\s+/g, '');
+    const oldSlug = document.getElementById('editProductOldSlug').value;
     const newSlug = newName.replace(/\s+/g, '');
 
     try {
@@ -1179,10 +1194,10 @@ document.getElementById('productEditForm')?.addEventListener('submit', async (e)
 
 // Arama Filtresi
 document.getElementById('stokSearch').addEventListener('input', (e) => {
-    const q = e.target.value.toUpperCase('tr-TR');
+    const q = e.target.value.toLocaleUpperCase('tr-TR');
     const rows = document.querySelectorAll('#stokStatusBody tr');
     rows.forEach(row => {
-        const text = row.cells[0].textContent.toUpperCase('tr-TR');
+        const text = row.cells[0].textContent.toLocaleUpperCase('tr-TR');
         row.style.display = text.includes(q) ? '' : 'none';
     });
 });
@@ -1498,13 +1513,19 @@ document.getElementById('btnPersonelExportPDF')?.addEventListener('click', () =>
 
 // ── TOAST ──────────────────────────────────────────────────────
 const showToast = (msg, type = 'success') => {
+    const bgColor = type === 'error' ? '#ef4444' : (type === 'info' ? '#3b82f6' : '#10b981');
     const el = document.createElement('div');
+    // Mobilde bottom-nav (64px) üzerinde, masaüstünde 1.5rem yukarıda
+    const isMobile = window.innerWidth <= 768;
+    const bottomVal = isMobile ? 'calc(64px + env(safe-area-inset-bottom, 0px) + 0.75rem)' : '1.5rem';
     el.style.cssText = `
-        position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999;
-        background:${type === 'error' ? '#ef4444' : '#10b981'};
+        position:fixed; bottom:${bottomVal}; right:1rem; left:1rem; z-index:9999;
+        background:${bgColor};
         color:white; padding:0.75rem 1.25rem; border-radius:10px;
         font-size:0.9rem; font-weight:600; box-shadow:0 4px 20px rgba(0,0,0,0.3);
         animation: slideIn 0.3s ease;
+        text-align:center;
+        max-width:500px; margin:0 auto;
     `;
     el.textContent = msg;
     document.body.appendChild(el);
@@ -1582,7 +1603,7 @@ document.getElementById('newPersonelForm')?.addEventListener('submit', async (e)
     
     if (!name) return;
     
-    const id = name.toUpperCase('tr-TR').replace(/\s+/g, '_');
+    const id = name.toLocaleUpperCase('tr-TR').replace(/\s+/g, '_');
     
     try {
         await db.collection(PERSONEL_MASTER_COL).doc(id).set({
@@ -1737,7 +1758,7 @@ const processPersonelData = () => {
                 if (r.leaveDays) det.push(r.leaveDays + ' Gün İzin');
                 
                 tr.innerHTML = `
-                    <td style="color:var(--danger); font-weight:bold; font-size:0.7rem;">${r.leaveType ? r.leaveType.toUpperCase() : 'İZİN/RAPOR'}</td>
+                    <td style="color:var(--danger); font-weight:bold; font-size:0.7rem;">${r.leaveType ? r.leaveType.toLocaleUpperCase('tr-TR') : 'İZİN/RAPOR'}</td>
                     <td>${formatDate(r.date)}</td>
                     <td>${pName}</td>
                     <td>${formatDate(r.leaveStart)} - ${formatDate(r.leaveEnd)}</td>
@@ -2422,12 +2443,12 @@ const renderUretim = () => {
 
 document.getElementById('recipeForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const product = document.getElementById('recipeProduct').value.toUpperCase().trim();
+    const product = document.getElementById('recipeProduct').value.toLocaleUpperCase('tr-TR').trim();
     const rows = document.querySelectorAll('.ingredient-row');
     const ingredients = [];
     
     rows.forEach(row => {
-        const name = row.querySelector('.ing-name').value.toUpperCase().trim();
+        const name = row.querySelector('.ing-name').value.toLocaleUpperCase('tr-TR').trim();
         const amount = parseFloat(row.querySelector('.ing-amount').value) || 0;
         if(name && amount > 0) ingredients.push({ name, amount });
     });
@@ -2457,14 +2478,14 @@ const updateUretimPreview = () => {
     }
     
     // Üretilen ürünün birimini bul
-    const prodDef = Object.values(allProducts).find(p => p.name.trim().toLowerCase() === productName.trim().toLowerCase());
+    const prodDef = Object.values(allProducts).find(p => p.name.trim().toLocaleLowerCase('tr-TR') === productName.trim().toLocaleLowerCase('tr-TR'));
     const prodUnit = prodDef && prodDef.unit ? prodDef.unit : 'Adet/Porsiyon';
     
     let html = `<strong><i class="fa-solid fa-flask"></i> Kullanılacak Malzemeler (${amount} ${prodUnit} için):</strong><ul style="margin-top: 5px; padding-left: 20px; margin-bottom: 0;">`;
     recipe.ingredients.forEach(ing => {
         const totalAmount = (ing.amount * amount).toFixed(2);
         // Malzemenin birimini bul
-        const ingDef = Object.values(allProducts).find(p => p.name.trim().toLowerCase() === ing.name.trim().toLowerCase());
+        const ingDef = Object.values(allProducts).find(p => p.name.trim().toLocaleLowerCase('tr-TR') === ing.name.trim().toLocaleLowerCase('tr-TR'));
         const ingUnit = ingDef && ingDef.unit ? ingDef.unit : 'birim';
         html += `<li>${ing.name}: <strong>${totalAmount}</strong> ${ingUnit}</li>`;
     });
@@ -2594,14 +2615,14 @@ const renderSales = () => {
     select.value = currentVal;
 
     // Filtre değerleri
-    const urunFilter = (document.getElementById('filterSatisUrun')?.value || '').toLowerCase().trim();
+    const urunFilter = (document.getElementById('filterSatisUrun')?.value || '').toLocaleLowerCase('tr-TR').trim();
     const startDate  = document.getElementById('filterSatisStart')?.value || '1970-01-01';
     const endDate    = document.getElementById('filterSatisEnd')?.value   || '2099-12-31';
     const sortMode   = document.getElementById('filterSatisSort')?.value  || 'date_desc';
 
     // Filtrele
     let filtered = allSales.filter(s => {
-        if (urunFilter && !(s.productName || '').toLowerCase().includes(urunFilter)) return false;
+        if (urunFilter && !(s.productName || '').toLocaleLowerCase('tr-TR').includes(urunFilter)) return false;
         if (s.date < startDate || s.date > endDate) return false;
         return true;
     });
@@ -3061,7 +3082,7 @@ const parseSalesExcel = async (file) => {
                         if (cellVal !== null && cellVal !== undefined) {
                             const productName = cellVal.toString().trim();
                             if (productName) {
-                                const upperVal = productName.toUpperCase('tr-TR');
+                                const upperVal = productName.toLocaleUpperCase('tr-TR');
                                 // Özet satırlarını ele (TOTAL, TOPLAM vb.)
                                 if (!upperVal.includes('TOTAL') && !upperVal.includes('TOPLAM') && !upperVal.includes('GENEL') && !upperVal.includes('TOPLAMI')) {
                                     results.push({
@@ -3112,7 +3133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const text = await extractTextFromPDF(file);
                         const rec = parseDataFromText(text, file.name);
                         if (rec) {
-                            await db.collection(COLLECTION).doc(rec.date).set(rec, { merge: true });
+                            await db.collection(COLLECTION).doc(rec.id).set(rec, { merge: true });
                             pdfCount++;
                         }
                     }
@@ -3129,7 +3150,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const recipesSnap = await db.collection(RECIPE_COLLECTION).get();
                             const recipes = {};
                             recipesSnap.forEach(doc => {
-                                recipes[doc.data().name.toUpperCase('tr-TR')] = doc.data().ingredients;
+                                recipes[doc.data().name.toLocaleUpperCase('tr-TR')] = doc.data().ingredients;
                             });
 
                             const processedOuts = [];
@@ -3140,7 +3161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     for (const ing of recipes[prodName]) {
                                         processedOuts.push({
                                             date: sale.date,
-                                            product: ing.name.toUpperCase('tr-TR'),
+                                            product: ing.name.toLocaleUpperCase('tr-TR'),
                                             amount: ing.amount * sale.amount
                                         });
                                     }
@@ -3206,6 +3227,15 @@ document.addEventListener('DOMContentLoaded', () => {
 // ══════════════════════════════════════════════════════════════════════════
 
 window.activeSupplierVkn = null;
+let _faturaModuleInited = false;
+
+const ensureFaturaModule = () => {
+    if (_faturaModuleInited || !currentUser) return;
+    const canSeeFatura = currentUser.role === 'admin' || (currentUser.perms && currentUser.perms.fatura);
+    if (!canSeeFatura) return;
+    _faturaModuleInited = true;
+    initFaturaModule();
+};
 
 const initFaturaModule = () => {
     // Tedarikçiler
@@ -3239,9 +3269,6 @@ const initFaturaModule = () => {
     const odemeT = document.getElementById('odemeTarih');
     if (odemeT) odemeT.value = getLocalDateString();
 };
-
-// initApp içine entegre et
-const _origInitApp = initApp;
 
 // ── Tedarikçi tablosu ──────────────────────────────────────────────────────
 const renderTedarikci = () => {
@@ -4046,23 +4073,16 @@ window.deleteOdeme = async (odemeId, faturaId, supplierVkn, amount) => {
 };
 
 // ── initApp'e entegre et ───────────────────────────────────────────────────
-// Accordion toggle ile modülü başlat (lazy loading)
 const _faturaToggleBtn = document.getElementById('toggleFatura');
 if (_faturaToggleBtn) {
-    let _faturaModuleInited = false;
-    _faturaToggleBtn.addEventListener('click', () => {
-        if (!_faturaModuleInited && currentUser) {
-            _faturaModuleInited = true;
-            initFaturaModule();
-        }
-    });
+    _faturaToggleBtn.addEventListener('click', ensureFaturaModule);
 }
 
 // ── Son Kullanma Tarihi Kontrol ve Uyarı Sistemi ───────────────────────────
 window.sktAlertShown = false;
 
 window.checkProductExpirations = (status) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const expiredProducts = [];
 
     Object.keys(status).forEach(slug => {
@@ -4100,3 +4120,277 @@ window.checkProductExpirations = (status) => {
         }
     }
 };
+
+// ── MOBILE UI FUNCTIONS ──────────────────────────────────────────────────
+window.toggleDrawer = () => {
+    const drawer = document.getElementById('mobileDrawer');
+    const overlay = document.getElementById('drawerOverlay');
+    if (drawer && overlay) {
+        drawer.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+};
+
+window.closeDrawer = () => {
+    const drawer = document.getElementById('mobileDrawer');
+    const overlay = document.getElementById('drawerOverlay');
+    if (drawer && overlay) {
+        drawer.classList.remove('open');
+        overlay.classList.remove('open');
+    }
+};
+
+window.switchTab = (tabId, btnElement) => {
+    document.querySelectorAll('.bottom-nav-item').forEach(btn => btn.classList.remove('active'));
+    if (btnElement) btnElement.classList.add('active');
+
+    document.querySelectorAll('.accordion-content').forEach(content => {
+        const toggleBtn = content.previousElementSibling;
+        if (content.id === tabId) {
+            content.classList.add('open');
+            if (toggleBtn) toggleBtn.classList.add('active');
+        } else {
+            content.classList.remove('open');
+            if (toggleBtn) toggleBtn.classList.remove('active');
+        }
+    });
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// --- YENİ EKLENEN: GEMINI API İLE OTOMATİK FORM OKUMA ---
+function toggleApiKeyInput() {
+    const container = document.getElementById('apiKeyContainer');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+        document.getElementById('geminiApiKey').value = savedKey;
+    }
+}
+
+function saveGeminiApiKey() {
+    const key = document.getElementById('geminiApiKey').value.trim();
+    if (key) {
+        localStorage.setItem('gemini_api_key', key);
+        alert('API Anahtarı başarıyla kaydedildi!');
+        document.getElementById('apiKeyContainer').style.display = 'none';
+    } else {
+        alert('Lütfen geçerli bir anahtar girin.');
+    }
+}
+
+let ocrPendingResults = [];
+
+async function handleFormImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+        alert('Lütfen önce sağ üstteki "API Ayarı" butonuna tıklayarak Gemini API Anahtarınızı girin!');
+        toggleApiKeyInput();
+        return;
+    }
+
+    document.getElementById('ocrLoadingArea').style.display = 'block';
+    document.getElementById('ocrResultArea').style.display = 'none';
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const base64Data = e.target.result.split(',')[1];
+        const mimeType = file.type || 'image/jpeg';
+
+        try {
+            const results = await analyzeImageWithGemini(base64Data, mimeType, apiKey);
+            displayOcrResults(results);
+        } catch (error) {
+            console.error(error);
+            alert("Resim işlenirken hata oluştu: " + error.message);
+            document.getElementById('ocrLoadingArea').style.display = 'none';
+        }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+async function analyzeImageWithGemini(base64Data, mimeType, apiKey) {
+    const prompt = `Fotoğraftaki depo formunu incele. Listelenen ürünleri ve yanlarındaki çarpı işareti (X) veya sayı olarak belirtilen çıkış miktarlarını tespit et. 
+Lütfen SADECE JSON array formatında veri döndür. Örnek:
+[
+  {"name": "BALDO PİRİNÇ", "amount": 1},
+  {"name": "COCA COLA ŞİŞE", "amount": 9}
+]
+Başka hiçbir metin veya markdown kullanma, doğrudan saf JSON döndür.`;
+
+    let selectedModel = "models/gemini-1.5-flash";
+    try {
+        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=` + apiKey);
+        if (modelsRes.ok) {
+            const modelsData = await modelsRes.json();
+            const validModels = (modelsData.models || []).filter(m => 
+                m.supportedGenerationMethods && 
+                m.supportedGenerationMethods.includes("generateContent") &&
+                m.name.includes("gemini")
+            );
+            
+            const flashModel = validModels.find(m => m.name.includes("flash"));
+            const proModel = validModels.find(m => m.name.includes("pro"));
+            
+            if (flashModel) selectedModel = flashModel.name;
+            else if (proModel) selectedModel = proModel.name;
+            else if (validModels.length > 0) selectedModel = validModels[0].name;
+            
+            console.log("Seçilen Model: ", selectedModel);
+        }
+    } catch(e) {
+        console.warn("Model listesi alınamadı, varsayılan model kullanılacak.", e);
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/` + selectedModel + `:generateContent?key=` + apiKey;
+    
+    const requestBody = {
+        contents: [
+            {
+                parts: [
+                    { text: prompt },
+                    {
+                        inline_data: {
+                            mime_type: mimeType,
+                            data: base64Data
+                        }
+                    }
+                ]
+            }
+        ],
+        generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json"
+        }
+    };
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || "API Hatası");
+    }
+
+    const data = await response.json();
+    let textResult = data.candidates[0].content.parts[0].text;
+    textResult = textResult.replace(/^```json/m, '').replace(/^```/m, '').trim();
+    
+    return JSON.parse(textResult);
+}
+
+function displayOcrResults(results) {
+    document.getElementById('ocrLoadingArea').style.display = 'none';
+    const tbody = document.getElementById('ocrResultTbody');
+    tbody.innerHTML = '';
+    ocrPendingResults = [];
+
+    if (!results || results.length === 0) {
+        alert("Resimden herhangi bir ürün çıkarılamadı. Fotoğrafın net olduğundan emin olun.");
+        return;
+    }
+
+    const datalist = document.getElementById('productsDataList');
+    
+    results.forEach((item, index) => {
+        let matchedName = item.name;
+        
+        if (datalist && datalist.options) {
+            let bestMatch = "";
+            const searchName = item.name.toUpperCase().replace(/[^A-Z0-9ÇĞİÖŞÜ]/g, "");
+            
+            for (let opt of datalist.options) {
+                const dbName = opt.value;
+                const dbSearchName = dbName.toUpperCase().replace(/[^A-Z0-9ÇĞİÖŞÜ]/g, "");
+                
+                if (dbSearchName.includes(searchName) || searchName.includes(dbSearchName)) {
+                    bestMatch = dbName;
+                    break;
+                }
+            }
+            if (bestMatch) {
+                matchedName = bestMatch;
+            }
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" value="${matchedName}" style="width:100%; padding:5px; background:rgba(255,255,255,0.1); color:white; border:none; outline:none;" list="productsDataList"></td>
+            <td><input type="number" value="${item.amount || 1}" style="width:60px; padding:5px; background:rgba(255,255,255,0.1); color:white; border:none; outline:none;"></td>
+            <td><button type="button" class="btn-danger" onclick="this.parentElement.parentElement.remove()" style="padding: 5px;"><i class="fa-solid fa-trash"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('ocrResultArea').style.display = 'block';
+}
+
+async function saveOcrResultsToFirestore(event) {
+    const tbody = document.getElementById('ocrResultTbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    if (rows.length === 0) {
+        alert("Eklenecek ürün kalmadı!");
+        document.getElementById('ocrResultArea').style.display = 'none';
+        return;
+    }
+
+    const finalItems = [];
+    rows.forEach((tr) => {
+        const inputs = tr.querySelectorAll('input');
+        const name = inputs[0].value.trim();
+        const amount = parseFloat(inputs[1].value);
+        if (name && amount > 0) {
+            finalItems.push({ name, amount });
+        }
+    });
+
+    if (finalItems.length === 0) return;
+
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İşleniyor...';
+    btn.disabled = true;
+
+    try {
+        const batch = db.batch();
+        const dateStr = new Date().toISOString().split('T')[0]; // Bugünün tarihi
+        
+        finalItems.forEach(item => {
+            const randomSuffix = Math.random().toString(36).substring(2, 7);
+            const slug = item.name.replace(/[^a-zA-Z0-9]/g, "");
+            const stokId = `${dateStr.replace(/-/g, '')}_OUT_${slug}_${randomSuffix}`;
+            
+            const docRef = db.collection('sultanahmet_stok').doc(stokId);
+            batch.set(docRef, {
+                id: stokId,
+                date: dateStr,
+                type: "OUT",
+                productName: item.name,
+                amount: item.amount,
+                price: 0,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                source: "OTOMATIK_FORM"
+            });
+        });
+
+        await batch.commit();
+        alert(`Toplam ${finalItems.length} ürün başarıyla çıkış yapıldı!`);
+        document.getElementById('ocrResultArea').style.display = 'none';
+        
+        if (typeof fetchStokData === 'function') fetchStokData();
+    } catch (err) {
+        console.error(err);
+        alert("Kaydetme sırasında bir hata oluştu: " + err.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
