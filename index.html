@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
     <title>Sultanahmet Analiz & Raporlama Portalı</title>
     
     <!-- PWA / Mobile App Settings -->
@@ -58,8 +58,24 @@
             <button id="btnClearData"   class="btn btn-outline admin-only hidden"><i class="fa-solid fa-trash"></i> Tümünü Sil</button>
             <button id="btnAutoUpdate" class="btn btn-primary" onclick="document.getElementById('autoUpdateInput').click()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border:none;"><i class="fa-solid fa-rotate"></i> Hızlı Güncelle (Excel/PDF)</button>
             <input type="file" id="autoUpdateInput" accept=".pdf, .xlsx, .xls" multiple hidden>
+            <button class="btn-hamburger" onclick="toggleDrawer()"><i class="fa-solid fa-bars"></i></button>
         </div>
     </header>
+
+    <!-- MOBILE DRAWER MENU & OVERLAY -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer()"></div>
+    <div class="mobile-drawer" id="mobileDrawer">
+        <div class="drawer-header">
+            <h3>Menü / İşlemler</h3>
+            <button class="btn-drawer-close" onclick="toggleDrawer()"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <button class="drawer-btn admin-only hidden" onclick="toggleDrawer(); document.getElementById('btnSettings').click();"><i class="fa-solid fa-cog"></i> Ayarlar</button>
+        <button class="drawer-btn success" onclick="toggleDrawer(); document.getElementById('btnExportExcel').click();"><i class="fa-solid fa-file-excel"></i> Ana Excel İndir</button>
+        <button class="drawer-btn danger" onclick="toggleDrawer(); document.getElementById('btnExportPDF').click();"><i class="fa-solid fa-file-pdf"></i> Ana PDF İndir</button>
+        <button class="drawer-btn" style="color: var(--primary);" onclick="toggleDrawer(); document.getElementById('btnAutoUpdate').click();"><i class="fa-solid fa-rotate"></i> Hızlı Güncelle</button>
+        <button class="drawer-btn danger admin-only hidden" onclick="toggleDrawer(); document.getElementById('btnClearData').click();"><i class="fa-solid fa-trash"></i> Tümünü Sil</button>
+        <button class="drawer-btn" onclick="toggleDrawer(); document.getElementById('btnLogout').click();"><i class="fa-solid fa-right-from-bracket"></i> Çıkış</button>
+    </div>
 
     <!-- ══════════════════════════════════════════════════════════ -->
     <!-- SEKME 1: MALİ ANALİZ (Açılır Pencere / Accordion) -->
@@ -285,7 +301,54 @@
                 </div>
             </div>
 
-            <!-- YENİ İŞLEM FORMU -->
+              <!-- OTOMATİK FORM YÜKLEME -->
+              <section class="glass-panel" style="margin-bottom: 20px; border: 1px solid var(--accent-blue);">
+                  <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                      <h2><i class="fa-solid fa-camera"></i> Otomatik Form Okut (Gemini AI)</h2>
+                      <button type="button" class="btn-secondary" onclick="toggleApiKeyInput()" style="padding: 5px 10px; font-size: 0.8rem;"><i class="fa-solid fa-key"></i> API Ayarı</button>
+                  </div>
+                  
+                  <div id="apiKeyContainer" style="display:none; margin-bottom: 15px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px;">
+                      <label style="display:block; margin-bottom: 5px;">Gemini API Anahtarı:</label>
+                      <input type="password" id="geminiApiKey" placeholder="AIzaSy..." style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; margin-bottom: 10px;">
+                      <button type="button" class="btn-primary" onclick="saveGeminiApiKey()">Kaydet</button>
+                      <p style="font-size: 0.8rem; margin-top: 5px; color: #aaa;">API anahtarınız sadece bu tarayıcıda saklanır. Güvenlidir.</p>
+                  </div>
+
+                  <div style="display: flex; gap: 10px; align-items: center;">
+                      <input type="file" id="formImageInput" accept="image/*, application/pdf" style="display:none;" onchange="handleFormImageSelect(event)">
+                      <button type="button" class="btn-primary" onclick="document.getElementById('formImageInput').click()" style="flex: 1; padding: 15px; font-size: 1.1rem; background: linear-gradient(45deg, #10b981, #059669); border-color: #059669; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-upload"></i> Form Fotoğrafı Yükle ve Oku</button>
+                  </div>
+
+                  <div id="ocrLoadingArea" style="display:none; margin-top: 15px; text-align: center;">
+                      <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                      <p style="margin-top: 10px;">Form yapay zeka tarafından inceleniyor, lütfen bekleyin... (Bu işlem 10-15 saniye sürebilir)</p>
+                  </div>
+
+                  <div id="ocrResultArea" style="display:none; margin-top: 15px;">
+                      <h3 style="margin-bottom: 10px;">Algılanan Çıkışlar</h3>
+                      <div class="table-responsive">
+                          <table>
+                              <thead>
+                                  <tr>
+                                      <th>Ürün Adı (Eşleşen)</th>
+                                      <th>Miktar</th>
+                                      <th>İşlem</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="ocrResultTbody">
+                                  <!-- Dinamik dolacak -->
+                              </tbody>
+                          </table>
+                      </div>
+                      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                          <button type="button" class="btn-secondary" onclick="document.getElementById('ocrResultArea').style.display='none'">İptal</button>
+                          <button type="button" class="btn-primary" onclick="saveOcrResultsToFirestore(event)">Onayla ve Çıkışları İşle</button>
+                      </div>
+                  </div>
+              </section>
+
+              <!-- YENİ İŞLEM FORMU -->
             <section class="glass-panel">
                 <div class="section-header">
                     <h2><i class="fa-solid fa-file-pen"></i> Yeni Stok İşlemi (Giriş / Çıkış / Sayım)</h2>
@@ -1079,6 +1142,32 @@
 
 </div><!-- /app-container -->
 
+<!-- BOTTOM NAVIGATION BAR (Mobile Only) -->
+<nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+        <button class="bottom-nav-item active" onclick="switchTab('maliAnalizContent', this)">
+            <i class="fa-solid fa-coins"></i><span>Mali</span>
+        </button>
+        <button class="bottom-nav-item" onclick="switchTab('depoStokContent', this)">
+            <i class="fa-solid fa-boxes-stacked"></i><span>Stok</span>
+        </button>
+        <button class="bottom-nav-item" onclick="switchTab('personelContent', this)">
+            <i class="fa-solid fa-users"></i><span>Personel</span>
+        </button>
+        <button class="bottom-nav-item" onclick="switchTab('rezervasyonContent', this)">
+            <i class="fa-solid fa-calendar-days"></i><span>Grup</span>
+        </button>
+        <button class="bottom-nav-item" onclick="switchTab('satisContent', this)">
+            <i class="fa-solid fa-cart-shopping"></i><span>Satış</span>
+        </button>
+    </div>
+</nav>
+
+<!-- FLOATING ACTION BUTTON (Mobile Only) -->
+<button class="fab" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+    <i class="fa-solid fa-arrow-up"></i>
+</button>
+
 <!-- LOGIN OVERLAY -->
 <div id="loginOverlay" class="login-overlay">
     <div class="login-card glass-panel">
@@ -1185,6 +1274,7 @@
         </div>
         <form id="productEditForm">
             <input type="hidden" id="editProductOldName">
+            <input type="hidden" id="editProductOldSlug">
             <div class="form-group">
                 <label>Ürün Adı</label>
                 <input type="text" id="editProductNameInput" required>
@@ -1365,6 +1455,6 @@
         document.getElementById(id).classList.toggle('hidden', !show);
     }
 </script>
-<script src="app_v6.js?v=22"></script>
+<script src="app_v6.js?v=10" charset="utf-8"></script>
 </body>
 </html>
