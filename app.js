@@ -1,4 +1,4 @@
-console.log('App Version: 6.0 (Admin Password Updated)');
+﻿console.log('App Version: 6.0 (Admin Password Updated)');
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
@@ -33,12 +33,15 @@ const formatDate = (dateString) => {
 
 // ── AUTH LOGIC ────────────────────────────────────────────────
 const checkAuth = () => {
-    // Geçici Admin Bypass
-    currentUser = { username: 'admin', role: 'admin', perms: { mali: true, stok: true, personel: true } };
-    localStorage.setItem('sultanahmet_user', JSON.stringify(currentUser));
-    document.getElementById('loginOverlay').classList.add('hidden');
-    updateUIVisibility();
-    initApp();
+    const saved = localStorage.getItem('sultanahmet_user');
+    if (saved) {
+        currentUser = JSON.parse(saved);
+        document.getElementById('loginOverlay').classList.add('hidden');
+        updateUIVisibility();
+        initApp();
+    } else {
+        document.getElementById('loginOverlay').classList.remove('hidden');
+    }
 };
 
 const updateUIVisibility = () => {
