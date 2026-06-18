@@ -4495,12 +4495,32 @@ document.getElementById('formSubeSatis')?.addEventListener('submit', async (e) =
             const docSnap = await docRef.get();
             if (docSnap.exists) {
                 let data = docSnap.data();
+                const oldItem = data.items[itemIdx];
+                
+                // Stok kaydını bul ve güncelle
+                const stokSnap = await db.collection('sultanahmet_stok')
+                    .where('faturaNo', '==', data.faturaNo)
+                    .where('productName', '==', oldItem.productName)
+                    .where('type', '==', 'OUT')
+                    .get();
+                
+                const batch = db.batch();
+                stokSnap.forEach(stokDoc => {
+                    batch.update(stokDoc.ref, {
+                        productName: product,
+                        amount: qty,
+                        unit: unit,
+                        subeName: subeName,
+                        date: date
+                    });
+                });
+
                 data.items[itemIdx] = { productName: product, qty: qty, unit: unit };
                 data.subeName = subeName;
                 data.date = date;
-                await docRef.update(data);
+                batch.update(docRef, data);
                 
-                // Stok güncellemesi manuel yapılacak.
+                await batch.commit();
             }
         } else {
             // New entry
@@ -4569,14 +4589,33 @@ window.deleteSubeSatisItem = async function(docId, itemIndex) {
         const docSnap = await docRef.get();
         if (docSnap.exists) {
             let data = docSnap.data();
+            const itemToDelete = data.items[itemIndex];
+
+            const batch = db.batch();
+
+            // Stok kaydını bul ve sil
+            const stokSnap = await db.collection('sultanahmet_stok')
+                .where('faturaNo', '==', data.faturaNo)
+                .where('productName', '==', itemToDelete.productName)
+                .where('type', '==', 'OUT')
+                .get();
+            
+            stokSnap.forEach(stokDoc => {
+                batch.delete(stokDoc.ref);
+            });
+
             data.items.splice(itemIndex, 1);
             if (data.items.length === 0) {
-                await docRef.delete();
+                batch.delete(docRef);
             } else {
-                await docRef.update({ items: data.items });
+                batch.update(docRef, { items: data.items });
             }
+
+            await batch.commit();
+
             fetchSubeSatisData();
-            alert('Silindi. (Not: Stok düzeltmesini Depo sekmesinden ayrıca silmelisiniz.)');
+            if (typeof fetchStokData === 'function') fetchStokData();
+            alert('Satış kaydı ve bağlı stok çıkışı silindi/düzeltildi.');
         }
     } catch (err) {
         alert('Hata: ' + err.message);
