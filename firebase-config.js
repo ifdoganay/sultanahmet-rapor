@@ -1,4 +1,4 @@
-// Firebase Yapılandırması - sultanahmet-rapor projesi
+﻿// Firebase Yapılandırması - sultanahmet-rapor projesi
 firebase.initializeApp({
     apiKey:            "AIzaSyBfizkWrmlnFmGwv23QC8KBAB6o9pSKhRs",
     authDomain:        "sultanahmet-rapor.firebaseapp.com",
