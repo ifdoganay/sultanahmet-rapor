@@ -1,4 +1,4 @@
-console.log('App Version: 6.0 (Admin Password Updated)');
+﻿console.log('App Version: 6.0 (Admin Password Updated)');
 const COLLECTION = 'sultanahmet_raporlar';
 const STOK_COLLECTION = 'sultanahmet_stok';
 const PRODUCT_COLLECTION = 'sultanahmet_products';
@@ -4361,12 +4361,24 @@ async function saveOcrResultsToFirestore(event) {
 
     try {
         const batch = db.batch();
-        const dateStr = new Date().toISOString().split('T')[0]; // Bugünün tarihi
+        const dateStr = new Date().toISOString().split('T')[0];
         
+        const ocrType = document.querySelector('input[name="ocrType"]:checked')?.value || 'DEPO';
+        const ocrSubeAdi = document.getElementById('ocrSubeAdi')?.value || '';
+
+        if (ocrType === 'SUBE' && !ocrSubeAdi) {
+            alert('Lütfen şube adını giriniz!');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        const subeSatisItems = [];
+
         finalItems.forEach(item => {
             const randomSuffix = Math.random().toString(36).substring(2, 7);
             const slug = item.name.replace(/[^a-zA-Z0-9]/g, "");
-            const stokId = `${dateStr.replace(/-/g, '')}_OUT_${slug}_${randomSuffix}`;
+            const stokId = \\_OUT_\_\\;
             
             const docRef = db.collection('sultanahmet_stok').doc(stokId);
             batch.set(docRef, {
@@ -4375,17 +4387,45 @@ async function saveOcrResultsToFirestore(event) {
                 type: "OUT",
                 productName: item.name,
                 amount: item.amount,
+                unit: 'Adet',
                 price: 0,
+                subeName: ocrType === 'SUBE' ? ocrSubeAdi : '',
+                faturaNo: ocrType === 'SUBE' ? 'OCR_FORM' : '',
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                source: "OTOMATIK_FORM"
+                source: ocrType === 'SUBE' ? "SUBE_SATIS_OCR" : "OTOMATIK_FORM"
             });
+
+            if (ocrType === 'SUBE') {
+                subeSatisItems.push({
+                    productName: item.name,
+                    qty: item.amount,
+                    unit: 'Adet',
+                    unitPrice: 0
+                });
+            }
         });
 
+        if (ocrType === 'SUBE' && subeSatisItems.length > 0) {
+            const newDocId = \OCR_\\;
+            const subeRef = db.collection('sultanahmet_sube_satis').doc(newDocId);
+            batch.set(subeRef, {
+                id: newDocId,
+                faturaNo: 'OCR_FORM',
+                date: dateStr,
+                subeName: ocrSubeAdi,
+                itemCount: subeSatisItems.length,
+                items: subeSatisItems,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
         await batch.commit();
-        alert(`Toplam ${finalItems.length} ürün başarıyla çıkış yapıldı!`);
+        alert('İşlem başarıyla kaydedildi!');
         document.getElementById('ocrResultArea').style.display = 'none';
         
         if (typeof fetchStokData === 'function') fetchStokData();
+        if (ocrType === 'SUBE' && typeof fetchSubeSatisData === 'function') fetchSubeSatisData();
     } catch (err) {
         console.error(err);
         alert("Kaydetme sırasında bir hata oluştu: " + err.message);
