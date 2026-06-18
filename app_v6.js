@@ -4214,14 +4214,19 @@ async function handleFormImageSelect(event) {
 }
 
 async function analyzeImageWithGemini(base64Data, mimeType, apiKey) {
-    const prompt = `Fotoğraftaki depo formunu incele. Listelenen ürünleri ve yanlarındaki çarpı işareti (X) veya sayı olarak belirtilen çıkış miktarlarını tespit et. 
-Lütfen SADECE JSON array formatında veri döndür. Örnek:
-[
-  {"name": "BALDO PİRİNÇ", "amount": 1},
-  {"name": "COCA COLA ŞİŞE", "amount": 9}
-]
-Başka hiçbir metin veya markdown kullanma, doğrudan saf JSON döndür.`;
+    const prompt = `Fotoğraftaki belgeyi incele. Bu belge bir çıkış veya sipariş formudur. 
+1. Eğer belgenin herhangi bir yerinde (üstte, SAYIN kısmında vs.) şube, müşteri veya cari adı geçiyorsa bunu "subeAdi" alanına yaz. Bulamazsan boş bırak.
+2. Listelenen ürünleri ve yanlarındaki çıkış miktarlarını tespit et. 
 
+Lütfen SADECE aşağıdaki JSON formatında veri döndür:
+{
+  "subeAdi": "Örnek Şube Adı",
+  "items": [
+    {"name": "BALDO PİRİNÇ", "amount": 1},
+    {"name": "COCA COLA ŞİŞE", "amount": 9}
+  ]
+}
+Başka hiçbir metin veya markdown kullanma, doğrudan saf JSON döndür.`;
     let selectedModel = "models/gemini-1.5-flash";
     try {
         const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=` + apiKey);
@@ -4291,15 +4296,26 @@ function displayOcrResults(results) {
     const tbody = document.getElementById('ocrResultTbody');
     tbody.innerHTML = '';
     ocrPendingResults = [];
+    let items = Array.isArray(results) ? results : (results.items || []);
+    
+    if (results && results.subeAdi) {
+        const subeInput = document.getElementById('ocrSubeAdi');
+        if (subeInput) subeInput.value = results.subeAdi;
+        
+        const ocrTypeSube = document.querySelector('input[name="ocrType"][value="SUBE"]');
+        if (ocrTypeSube) {
+            ocrTypeSube.checked = true;
+            document.getElementById('ocrSubeAdiContainer').style.display='block';
+        }
+    }
 
-    if (!results || results.length === 0) {
+    if (!items || items.length === 0) {
         alert("Resimden herhangi bir ürün çıkarılamadı. Fotoğrafın net olduğundan emin olun.");
         return;
     }
-
     const datalist = document.getElementById('productsDataList');
     
-    results.forEach((item, index) => {
+    items.forEach((item, index) => {
         let matchedName = item.name;
         
         if (datalist && datalist.options) {
