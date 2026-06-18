@@ -4394,3 +4394,191 @@ async function saveOcrResultsToFirestore(event) {
         btn.disabled = false;
     }
 }
+
+// ══════════════════════════════════════════════════════════
+// ŞUBE SATIŞLARI LOGIC
+// ══════════════════════════════════════════════════════════
+let subeSatisData = [];
+
+async function fetchSubeSatisData() {
+    try {
+        const snapshot = await db.collection('sultanahmet_sube_satis').orderBy('date', 'desc').limit(200).get();
+        let records = [];
+        snapshot.forEach(doc => {
+            records.push({ id: doc.id, ...doc.data() });
+        });
+        subeSatisData = records;
+        renderSubeSatisTable();
+    } catch (e) {
+        console.error('Şube satışları çekilirken hata:', e);
+    }
+}
+
+function renderSubeSatisTable() {
+    const tbody = document.getElementById('subeSatisTableBody');
+    if (!tbody) return;
+
+    const filterName = (document.getElementById('filterSubeIsmi')?.value || '').toLowerCase();
+    const filterDate = document.getElementById('filterSubeTarih')?.value || '';
+    const filterProd = (document.getElementById('filterSubeUrun')?.value || '').toLowerCase();
+
+    let html = '';
+    
+    // Sube satis verileri fatura bazında veya kalem bazında olabilir
+    // Biz items dizisi icindeki kalemleri ayristirip gosterelim.
+    let rowCount = 0;
+    subeSatisData.forEach(fatura => {
+        if (!fatura.items || !Array.isArray(fatura.items)) return;
+        
+        fatura.items.forEach((item, itemIndex) => {
+            // Apply Filters
+            if (filterDate && fatura.date !== filterDate) return;
+            if (filterName && (!fatura.subeName || !fatura.subeName.toLowerCase().includes(filterName))) return;
+            if (filterProd && (!item.productName || !item.productName.toLowerCase().includes(filterProd))) return;
+
+            rowCount++;
+            html += `<tr>
+                <td>${fatura.date}</td>
+                <td><strong>${fatura.subeName || 'Bilinmeyen Şube'}</strong></td>
+                <td>${item.productName}</td>
+                <td>${item.qty}</td>
+                <td>${item.unit}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline" onclick="editSubeSatis('${fatura.id}', ${itemIndex})"><i class="fa-solid fa-edit"></i></button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteSubeSatisItem('${fatura.id}', ${itemIndex})"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>`;
+        });
+    });
+
+    if (rowCount === 0) {
+        html = `<tr><td colspan='6' class='text-center'>Kayıt bulunamadı.</td></tr>`;
+    }
+    tbody.innerHTML = html;
+}
+
+// Event Listeners for Filters
+document.getElementById('filterSubeIsmi')?.addEventListener('input', renderSubeSatisTable);
+document.getElementById('filterSubeTarih')?.addEventListener('change', renderSubeSatisTable);
+document.getElementById('filterSubeUrun')?.addEventListener('input', renderSubeSatisTable);
+
+// Init fetch
+document.addEventListener('DOMContentLoaded', () => {
+    if(document.getElementById('subeSatisTableBody')) {
+        fetchSubeSatisData();
+    }
+});
+
+// Form Submission (Add / Edit)
+document.getElementById('formSubeSatis')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById('subeSatisEditId').value;
+    const date = document.getElementById('subeSatisDate').value;
+    const subeName = document.getElementById('subeSatisName').value;
+    const product = document.getElementById('subeSatisProduct').value;
+    const qty = parseFloat(document.getElementById('subeSatisQty').value);
+    const unit = document.getElementById('subeSatisUnit').value;
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
+    btn.disabled = true;
+
+    try {
+        if (editId && editId.includes('|')) {
+            // Edit existing item
+            const parts = editId.split('|');
+            const docId = parts[0];
+            const itemIdx = parseInt(parts[1]);
+            
+            const docRef = db.collection('sultanahmet_sube_satis').doc(docId);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                let data = docSnap.data();
+                data.items[itemIdx] = { productName: product, qty: qty, unit: unit };
+                data.subeName = subeName;
+                data.date = date;
+                await docRef.update(data);
+                
+                // Stok güncellemesi manuel yapılacak.
+            }
+        } else {
+            // New entry
+            const newDocId = `MANUEL_${Date.now()}`;
+            await db.collection('sultanahmet_sube_satis').doc(newDocId).set({
+                id: newDocId,
+                faturaNo: 'MANUEL',
+                date: date,
+                subeName: subeName,
+                itemCount: 1,
+                items: [{ productName: product, qty: qty, unit: unit }],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Depo Çıkış (OUT)
+            const stokId = `${date.replace(/-/g,'')}_OUT_${product.replace(/\s+/g,'_')}_${Date.now()}`;
+            await db.collection('sultanahmet_stok').doc(stokId).set({
+                id: stokId,
+                date: date,
+                type: 'OUT',
+                productName: product,
+                amount: qty,
+                unit: unit,
+                source: 'SUBE_SATIS_MANUEL',
+                faturaNo: 'MANUEL',
+                subeName: subeName,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        
+        toggleModal('subeSatisModal', false);
+        e.target.reset();
+        document.getElementById('subeSatisEditId').value = '';
+        await fetchSubeSatisData();
+        if (typeof fetchStokData === 'function') fetchStokData();
+        alert('Kaydedildi!');
+    } catch (err) {
+        console.error(err);
+        alert('Hata: ' + err.message);
+    } finally {
+        btn.innerHTML = origText;
+        btn.disabled = false;
+    }
+});
+
+window.editSubeSatis = function(docId, itemIndex) {
+    const fatura = subeSatisData.find(f => f.id === docId);
+    if (!fatura) return;
+    const item = fatura.items[itemIndex];
+    
+    document.getElementById('subeSatisEditId').value = docId + '|' + itemIndex;
+    document.getElementById('subeSatisDate').value = fatura.date;
+    document.getElementById('subeSatisName').value = fatura.subeName;
+    document.getElementById('subeSatisProduct').value = item.productName;
+    document.getElementById('subeSatisQty').value = item.qty;
+    document.getElementById('subeSatisUnit').value = item.unit || 'Adet';
+    
+    document.getElementById('subeSatisModalTitle').innerHTML = '<i class="fa-solid fa-edit"></i> Şube Satışı Düzenle';
+    toggleModal('subeSatisModal', true);
+};
+
+window.deleteSubeSatisItem = async function(docId, itemIndex) {
+    if (!confirm('Bu satış kaydını silmek istediğinize emin misiniz?')) return;
+    try {
+        const docRef = db.collection('sultanahmet_sube_satis').doc(docId);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            let data = docSnap.data();
+            data.items.splice(itemIndex, 1);
+            if (data.items.length === 0) {
+                await docRef.delete();
+            } else {
+                await docRef.update({ items: data.items });
+            }
+            fetchSubeSatisData();
+            alert('Silindi. (Not: Stok düzeltmesini Depo sekmesinden ayrıca silmelisiniz.)');
+        }
+    } catch (err) {
+        alert('Hata: ' + err.message);
+    }
+};
