@@ -4378,7 +4378,7 @@ async function saveOcrResultsToFirestore(event) {
         finalItems.forEach(item => {
             const randomSuffix = Math.random().toString(36).substring(2, 7);
             const slug = item.name.replace(/[^a-zA-Z0-9]/g, "");
-            const stokId = \\_OUT_\_\\;
+            const stokId = `${dateStr.replace(/-/g, '')}_OUT_${slug}_${randomSuffix}`;
             
             const docRef = db.collection('sultanahmet_stok').doc(stokId);
             batch.set(docRef, {
@@ -4406,7 +4406,7 @@ async function saveOcrResultsToFirestore(event) {
         });
 
         if (ocrType === 'SUBE' && subeSatisItems.length > 0) {
-            const newDocId = \OCR_\\;
+            const newDocId = `OCR_${Date.now()}`;
             const subeRef = db.collection('sultanahmet_sube_satis').doc(newDocId);
             batch.set(subeRef, {
                 id: newDocId,
