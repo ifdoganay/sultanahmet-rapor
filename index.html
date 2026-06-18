@@ -1161,9 +1161,12 @@
         <div class="accordion-content" id="subeSatisContent">
             
             <section class="glass-panel">
-                <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                     <h2><i class="fa-solid fa-list"></i> Şube Satış Kayıtları</h2>
-                    <button class="btn btn-primary" onclick="toggleModal('subeSatisModal', true)"><i class="fa-solid fa-plus"></i> Manuel Şube Satışı Ekle</button>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-secondary" onclick="if(!document.getElementById('depoStokContent').classList.contains('open')){document.getElementById('toggleDepoStok').click();} setTimeout(()=>{document.getElementById('formImageInput').parentNode.scrollIntoView({behavior:'smooth', block:'center'}); document.querySelector('input[name=ocrType][value=SUBE]').checked = true; document.getElementById('ocrSubeAdiContainer').style.display='block';},300);"><i class="fa-solid fa-camera"></i> Yapay Zeka ile Form Okut</button>
+                        <button class="btn btn-primary" onclick="toggleModal('subeSatisModal', true)"><i class="fa-solid fa-plus"></i> Manuel Şube Satışı Ekle</button>
+                    </div>
                 </div>
                 
                 <div class="filter-bar" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
