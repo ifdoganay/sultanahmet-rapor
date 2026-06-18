@@ -315,6 +315,16 @@
                       <p style="font-size: 0.8rem; margin-top: 5px; color: #aaa;">API anahtarınız sadece bu tarayıcıda saklanır. Güvenlidir.</p>
                   </div>
 
+                  <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; flex-wrap: wrap;">
+                      <label style="color:white; font-weight:bold;">İşlem Tipi:</label>
+                      <label style="cursor:pointer;"><input type="radio" name="ocrType" value="DEPO" checked onchange="document.getElementById('ocrSubeAdiContainer').style.display='none'"> Depo Çıkışı</label>
+                      <label style="cursor:pointer;"><input type="radio" name="ocrType" value="SUBE" onchange="document.getElementById('ocrSubeAdiContainer').style.display='block'"> Şube Satışı</label>
+                      
+                      <div id="ocrSubeAdiContainer" style="display:none; margin-left:15px;">
+                          <input type="text" id="ocrSubeAdi" placeholder="Şube Adı Giriniz" class="form-control" style="padding: 5px; border-radius: 4px; background: rgba(255,255,255,0.1); border: 1px solid #ccc; color: white;">
+                      </div>
+                  </div>
+
                   <div style="display: flex; gap: 10px; align-items: center;">
                       <input type="file" id="formImageInput" accept="image/*, application/pdf" style="display:none;" onchange="handleFormImageSelect(event)">
                       <button type="button" class="btn-primary" onclick="document.getElementById('formImageInput').click()" style="flex: 1; padding: 15px; font-size: 1.1rem; background: linear-gradient(45deg, #10b981, #059669); border-color: #059669; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-upload"></i> Form Fotoğrafı Yükle ve Oku</button>
